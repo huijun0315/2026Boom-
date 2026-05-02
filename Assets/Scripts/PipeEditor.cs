@@ -187,9 +187,32 @@ public class PipeEditor : MonoBehaviour
         }
         else
         {
-            puzzle.PlaceOrReplace(coord, face, kind, 0);
+            int portalGroup = ResolvePortalGroupForPlacement(coord, face, kind);
+            puzzle.PlaceOrReplace(coord, face, kind, 0, portalGroup);
             SetStatus("放置 " + kind + " @ " + coord + " " + face);
         }
+    }
+
+    int ResolvePortalGroupForPlacement(Vector3Int coord, Vector3Int face, PipeKind kind)
+    {
+        if (kind != PipeKind.PortalA && kind != PipeKind.PortalB) return 0;
+        if (puzzle == null || puzzle.cells == null) return 0;
+
+        int exist = puzzle.IndexOfCell(coord, face);
+        if (exist >= 0)
+        {
+            var existing = puzzle.cells[exist];
+            if (existing.kind == PipeKind.PortalA || existing.kind == PipeKind.PortalB)
+                return Mathf.Max(0, existing.portalGroup);
+        }
+
+        int nextGroup = 0;
+        for (int i = 0; i < puzzle.cells.Count; i++)
+        {
+            if (puzzle.cells[i].kind == kind)
+                nextGroup = Mathf.Max(nextGroup, puzzle.cells[i].portalGroup + 1);
+        }
+        return nextGroup;
     }
 
     bool IsCubieOfCube(Transform t)

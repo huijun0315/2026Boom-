@@ -1,0 +1,142 @@
+{
+    "id": "level_16",
+    "displayName": "16",
+    "moveLimit": 3,
+    "cells": [
+        {
+            "cubieCoord": {
+                "x": -1,
+                "y": -1,
+                "z": -1
+            },
+            "faceNormal": {
+                "x": 0,
+                "y": 0,
+                "z": -1
+            },
+            "kind": 6,
+            "orientation": 1,
+            "portalGroup": 0
+        },
+        {
+            "cubieCoord": {
+                "x": 1,
+                "y": 0,
+                "z": -1
+            },
+            "faceNormal": {
+                "x": 1,
+                "y": 0,
+                "z": 0
+            },
+            "kind": 4,
+            "orientation": 0,
+            "portalGroup": 0
+        },
+        {
+            "cubieCoord": {
+                "x": 1,
+                "y": 1,
+                "z": 1
+            },
+            "faceNormal": {
+                "x": 0,
+                "y": 0,
+                "z": 1
+            },
+            "kind": 3,
+            "orientation": 3,
+            "portalGroup": 0
+        },
+        {
+            "cubieCoord": {
+                "x": 0,
+                "y": 1,
+                "z": 0
+            },
+            "faceNormal": {
+                "x": 0,
+                "y": 1,
+                "z": 0
+            },
+            "kind": 7,
+            "orientation": 0,
+            "portalGroup": 0
+        },
+        {
+            "cubieCoord": {
+                "x": -1,
+                "y": 1,
+                "z": 0
+            },
+            "faceNormal": {
+                "x": 0,
+                "y": 1,
+                "z": 0
+            },
+            "kind": 8,
+            "orientation": 2,
+            "portalGroup": 0
+        },
+        {
+            "cubieCoord": {
+                "x": -1,
+                "y": 1,
+                "z": 0
+            },
+            "faceNormal": {
+                "x": -1,
+                "y": 0,
+                "z": 0
+            },
+            "kind": 1,
+            "orientation": 1,
+            "portalGroup": 0
+        },
+        {
+            "cubieCoord": {
+                "x": 0,
+                "y": 1,
+                "z": -1
+            },
+            "faceNormal": {
+                "x": 0,
+                "y": 1,
+                "z": 0
+            },
+            "kind": 7,
+            "orientation": 0,
+            "portalGroup": 1
+        },
+        {
+            "cubieCoord": {
+                "x": -1,
+                "y": 1,
+                "z": -1
+            },
+            "faceNormal": {
+                "x": 0,
+                "y": 1,
+                "z": 0
+            },
+            "kind": 8,
+            "orientation": 2,
+            "portalGroup": 1
+        },
+        {
+            "cubieCoord": {
+                "x": -1,
+                "y": 1,
+                "z": -1
+            },
+            "faceNormal": {
+                "x": -1,
+                "y": 0,
+                "z": 0
+            },
+            "kind": 1,
+            "orientation": 1,
+            "portalGroup": 0
+        }
+    ]
+}

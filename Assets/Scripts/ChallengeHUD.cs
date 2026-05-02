@@ -213,7 +213,7 @@ public class ChallengeHUD : MonoBehaviour
         tr.anchorMin = new Vector2(0.5f, 0.5f);
         tr.anchorMax = new Vector2(0.5f, 0.5f);
         tr.pivot = new Vector2(0.5f, 0.5f);
-        tr.anchoredPosition = new Vector2(0, 180);
+        tr.anchoredPosition = new Vector2(0, 250);
         tr.sizeDelta = new Vector2(560, 100);
         var t = titleGO.GetComponent<Text>();
         t.text = "已暂停";
@@ -223,13 +223,13 @@ public class ChallengeHUD : MonoBehaviour
         t.color = Color.white;
         t.raycastTarget = false;
 
-        var resumeBtn = CreatePauseButton(_pausePanel.transform, font, "继续游戏", new Vector2(0, 150), new Color(0.22f, 0.62f, 0.32f));
+        var resumeBtn = CreatePauseButton(_pausePanel.transform, font, "继续游戏", new Vector2(0, 110), new Color(0.22f, 0.62f, 0.32f));
         resumeBtn.onClick.AddListener(OnPauseResumeClicked);
 
-        var backBtn = CreatePauseButton(_pausePanel.transform, font, "返回", new Vector2(0, 30), new Color(0.24f, 0.45f, 0.78f));
+        var backBtn = CreatePauseButton(_pausePanel.transform, font, "返回", new Vector2(0, -10), new Color(0.24f, 0.45f, 0.78f));
         backBtn.onClick.AddListener(OnPauseBackClicked);
 
-        var achBtn = CreatePauseButton(_pausePanel.transform, font, "成就藏馆", new Vector2(0, -90), new Color(0.40f, 0.40f, 0.40f));
+        var achBtn = CreatePauseButton(_pausePanel.transform, font, "成就藏馆", new Vector2(0, -130), new Color(0.40f, 0.40f, 0.40f));
         achBtn.onClick.AddListener(OnPauseAchievementClicked);
 
         _pausePanel.SetActive(false);

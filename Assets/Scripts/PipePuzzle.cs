@@ -40,6 +40,8 @@ public class PipePuzzle : MonoBehaviour
     public Color startColor = new Color(0.20f, 1.00f, 0.35f);
     public Color endColor   = new Color(1.00f, 0.35f, 0.35f);
     public Color portalColor = new Color(0.85f, 0.45f, 1.00f);
+    [Tooltip("水管上的数字/标签颜色（建议与白色魔方面形成对比）")]
+    public Color pipeLabelColor = new Color(0.08f, 0.10f, 0.14f);
 
     private Material _matEmpty, _matWater, _matStart, _matEnd, _matPortal;
     private readonly List<PipeCell> _pipeCells = new List<PipeCell>();
@@ -140,6 +142,13 @@ public class PipePuzzle : MonoBehaviour
         // 等一帧，确保 RubikCube.Start 先跑完（或者它已通过 OnBuilt 通知了我们）
         yield return null;
         if (!_built && cube != null && cube.IsBuilt) HandleCubeBuilt();
+    }
+
+    void Update()
+    {
+        bool altHeld = Input.GetKey(KeyCode.LeftAlt) || Input.GetKey(KeyCode.RightAlt);
+        if (altHeld && Input.GetKeyDown(KeyCode.Alpha1))
+            ForceSolveByCheat();
     }
 
     void HandleCubeBuilt()
@@ -251,7 +260,7 @@ public class PipePuzzle : MonoBehaviour
         return -1;
     }
 
-    public void PlaceOrReplace(Vector3Int cubieCoord, Vector3Int faceNormal, PipeKind kind, int orientation)
+    public void PlaceOrReplace(Vector3Int cubieCoord, Vector3Int faceNormal, PipeKind kind, int orientation, int portalGroup = 0)
     {
         if (!IsValidOuterFace(cubieCoord, faceNormal))
         {
@@ -259,7 +268,14 @@ public class PipePuzzle : MonoBehaviour
             return;
         }
         int i = IndexOfCell(cubieCoord, faceNormal);
-        var cfg = new CellConfig { cubieCoord = cubieCoord, faceNormal = faceNormal, kind = kind, orientation = orientation };
+        var cfg = new CellConfig
+        {
+            cubieCoord = cubieCoord,
+            faceNormal = faceNormal,
+            kind = kind,
+            orientation = orientation,
+            portalGroup = (kind == PipeKind.PortalA || kind == PipeKind.PortalB) ? Mathf.Max(0, portalGroup) : 0
+        };
         if (i >= 0) cells[i] = cfg; else cells.Add(cfg);
         if (_built) Rebuild();
     }
@@ -463,7 +479,7 @@ public class PipePuzzle : MonoBehaviour
                     tm.text = cap.ToString();
                     tm.fontSize = 48;
                     tm.characterSize = pipeRadius * 0.7f;
-                    tm.color = Color.white;
+                    tm.color = pipeLabelColor;
                     tm.anchor = TextAnchor.MiddleCenter;
                     tm.alignment = TextAlignment.Center;
                     pc.capacityLabel = tm;
@@ -492,7 +508,7 @@ public class PipePuzzle : MonoBehaviour
                 tm.text = (cfg.kind == PipeKind.PortalA ? "A" : "B") + cfg.portalGroup;
                 tm.fontSize = 48;
                 tm.characterSize = pipeRadius * 0.55f;
-                tm.color = Color.white;
+                tm.color = pipeLabelColor;
                 tm.anchor = TextAnchor.MiddleCenter;
                 tm.alignment = TextAlignment.Center;
                 pc.capacityLabel = tm; // 复用 capacityLabel 的 LateUpdate 朝向逻辑
@@ -794,26 +810,37 @@ public class PipePuzzle : MonoBehaviour
 
         if (solved && !wasSolved)
         {
-            EarnedStarThisRun = MoveLimit > 0 && MoveCount <= MoveLimit;
-            if (!string.IsNullOrEmpty(loadedLevelId))
-            {
-                string key = "star_" + loadedLevelId;
-                int prev = PlayerPrefs.GetInt(key, 0);
-                int now = EarnedStarThisRun ? 1 : 0;
-                if (now > prev) { PlayerPrefs.SetInt(key, now); PlayerPrefs.Save(); }
-
-                string clearKey = "clear_" + loadedLevelId;
-                if (PlayerPrefs.GetInt(clearKey, 0) == 0)
-                {
-                    PlayerPrefs.SetInt(clearKey, 1);
-                    PlayerPrefs.Save();
-                }
-            }
-            // 通知引导弹窗管理器检查星星数触发
-            if (TutorialPopupManager.Instance != null)
-                TutorialPopupManager.Instance.NotifyStarCountChanged();
-            if (fireEvent && OnSolved != null) OnSolved();
+            HandleSolvedOnce(fireEvent);
         }
+    }
+
+    void ForceSolveByCheat()
+    {
+        if (IsSolved) return;
+        IsSolved = true;
+        HandleSolvedOnce(fireEvent: true);
+    }
+
+    void HandleSolvedOnce(bool fireEvent)
+    {
+        EarnedStarThisRun = MoveLimit > 0 && MoveCount <= MoveLimit;
+        if (!string.IsNullOrEmpty(loadedLevelId))
+        {
+            string key = "star_" + loadedLevelId;
+            int prev = PlayerPrefs.GetInt(key, 0);
+            int now = EarnedStarThisRun ? 1 : 0;
+            if (now > prev) { PlayerPrefs.SetInt(key, now); PlayerPrefs.Save(); }
+
+            string clearKey = "clear_" + loadedLevelId;
+            if (PlayerPrefs.GetInt(clearKey, 0) == 0)
+            {
+                PlayerPrefs.SetInt(clearKey, 1);
+                PlayerPrefs.Save();
+            }
+        }
+        if (TutorialPopupManager.Instance != null)
+            TutorialPopupManager.Instance.NotifyStarCountChanged();
+        if (fireEvent && OnSolved != null) OnSolved();
     }
 
     // -----------------------------------------------------------------------
@@ -860,6 +887,7 @@ public class PipePuzzle : MonoBehaviour
     public static string GetNextLevelId(string id)
     {
         if (string.IsNullOrEmpty(id)) return null;
+        if (id == "level_11") return null;
 
         var ordered = LevelStore.LoadOrderedIds();
         if (ordered != null)
@@ -867,7 +895,13 @@ public class PipePuzzle : MonoBehaviour
             for (int i = 0; i < ordered.Length; i++)
             {
                 if (ordered[i] != id) continue;
-                return (i + 1 < ordered.Length) ? ordered[i + 1] : null;
+                for (int j = i + 1; j < ordered.Length; j++)
+                {
+                    var candidate = ordered[j];
+                    if (string.IsNullOrEmpty(candidate)) continue;
+                    if (LevelStore.Load(candidate) != null) return candidate;
+                }
+                return null;
             }
         }
 
