@@ -307,7 +307,7 @@ public class LevelCompleteUI : MonoBehaviour
             bool hasNext = false;
             if (puzzle != null)
             {
-                string nextId = ComputeNext(puzzle.loadedLevelId);
+                string nextId = PipePuzzle.GetNextLevelId(puzzle.loadedLevelId);
                 if (!string.IsNullOrEmpty(nextId) && LevelStore.Load(nextId) != null) hasNext = true;
             }
             _nextButton.interactable = hasNext;
@@ -375,14 +375,4 @@ public class LevelCompleteUI : MonoBehaviour
         puzzle.RestartLevel();
     }
 
-    static string ComputeNext(string id)
-    {
-        if (string.IsNullOrEmpty(id)) return null;
-        int i = id.Length - 1;
-        while (i >= 0 && char.IsDigit(id[i])) i--;
-        if (i == id.Length - 1) return null;
-        int num;
-        if (!int.TryParse(id.Substring(i + 1), out num)) return null;
-        return id.Substring(0, i + 1) + (num + 1);
-    }
 }

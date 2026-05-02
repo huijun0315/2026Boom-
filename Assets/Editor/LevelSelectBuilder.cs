@@ -69,36 +69,87 @@ public static class LevelSelectBuilder
 
             var menuBtnType = Type.GetType("MenuButton, Assembly-CSharp");
             var levelBtnType = Type.GetType("LevelButton, Assembly-CSharp");
+            var dragTileType = Type.GetType("LevelTileDraggable, Assembly-CSharp");
+            var reorderCtrlType = Type.GetType("LevelSelectReorderController, Assembly-CSharp");
             if (menuBtnType == null) return "ERROR: MenuButton not found";
             if (levelBtnType == null) return "ERROR: LevelButton not found";
+            if (dragTileType == null) return "ERROR: LevelTileDraggable not found";
+            if (reorderCtrlType == null) return "ERROR: LevelSelectReorderController not found";
 
-            // Grid: 5 cols x 2 rows
+            var orderedIds = new List<string>(LevelStore.LoadOrderedIds());
+            if (orderedIds.Count == 0)
+                orderedIds.Add("level_1");
+
+            int levelCount = orderedIds.Count;
+
+            // 动态计算网格布局
             int cols = 5;
-            int rows = 2;
-            float cellW = 240f;
-            float cellH = 240f;
-            float spacingX = 40f;
-            float spacingY = 60f;
+            int rows = Mathf.CeilToInt((float)levelCount / cols);
+            // 根据行数缩小按钮
+            float cellW, cellH, spacingX, spacingY;
+            if (rows <= 2)
+            {
+                cellW = 240f; cellH = 240f; spacingX = 40f; spacingY = 60f;
+            }
+            else if (rows <= 3)
+            {
+                cellW = 200f; cellH = 200f; spacingX = 32f; spacingY = 40f;
+            }
+            else
+            {
+                cellW = 160f; cellH = 160f; spacingX = 24f; spacingY = 28f;
+            }
 
             float totalW = cols * cellW + (cols - 1) * spacingX;
             float totalH = rows * cellH + (rows - 1) * spacingY;
 
-            // Offset: center of grid at (0, -40) ish
             float gridCenterY = -60f;
             float startX = -totalW / 2f + cellW / 2f;
             float startY = gridCenterY + totalH / 2f - cellH / 2f;
 
-            for (int i = 0; i < 10; i++)
+            for (int i = 0; i < levelCount; i++)
             {
                 int row = i / cols;
                 int col = i % cols;
                 float x = startX + col * (cellW + spacingX);
                 float y = startY - row * (cellH + spacingY);
 
-                bool unlocked = (i < 9); // 前九个解锁，第十个未解锁
-                BuildLevelTile(canvasGO.transform, i + 1, new Vector2(x, y), new Vector2(cellW, cellH),
-                               unlocked, font, menuBtnType, levelBtnType);
+                string levelId = orderedIds[i];
+                string prerequisiteLevelId = i > 0 ? orderedIds[i - 1] : "";
+                var data = LevelStore.Load(levelId);
+                string displayName = (data != null && !string.IsNullOrEmpty(data.displayName)) ? data.displayName : ("关卡 " + (i + 1));
+                bool unlocked = (i < levelCount - 1); // 最后一个未解锁
+                BuildLevelTile(canvasGO.transform, i + 1, levelId, displayName, new Vector2(x, y), new Vector2(cellW, cellH),
+                               unlocked, prerequisiteLevelId, font, menuBtnType, levelBtnType, dragTileType);
             }
+
+            var orderBtn = CreateButton(canvasGO.transform, "OrderModeBtn", "排序模式", font,
+                new Color(0.72f, 0.52f, 0.24f),
+                anchorMin: new Vector2(1f, 1f), anchorMax: new Vector2(1f, 1f), pivot: new Vector2(1f, 1f),
+                anchored: new Vector2(-20f, -20f), size: new Vector2(160f, 56f));
+
+            var saveBtn = CreateButton(canvasGO.transform, "OrderSaveBtn", "保存顺序", font,
+                new Color(0.22f, 0.62f, 0.32f),
+                anchorMin: new Vector2(1f, 1f), anchorMax: new Vector2(1f, 1f), pivot: new Vector2(1f, 1f),
+                anchored: new Vector2(-20f, -86f), size: new Vector2(160f, 56f));
+
+            var cancelBtn = CreateButton(canvasGO.transform, "OrderCancelBtn", "取消", font,
+                new Color(0.45f, 0.45f, 0.50f),
+                anchorMin: new Vector2(1f, 1f), anchorMax: new Vector2(1f, 1f), pivot: new Vector2(1f, 1f),
+                anchored: new Vector2(-20f, -152f), size: new Vector2(160f, 56f));
+
+            var orderStatus = CreateText(canvasGO.transform, "OrderStatus", "",
+                anchorMin: new Vector2(1f, 1f), anchorMax: new Vector2(1f, 1f), pivot: new Vector2(1f, 1f),
+                anchored: new Vector2(-20f, -218f), size: new Vector2(320f, 80f),
+                font: font, fontSize: 20, color: new Color(1f, 1f, 1f, 0.9f), align: TextAnchor.UpperRight);
+
+            var reorderGO = new GameObject("LevelOrderEditor");
+            var reorderComp = reorderGO.AddComponent(reorderCtrlType);
+            SetField(reorderCtrlType, reorderComp, "tileRoot", canvasGO.GetComponent<RectTransform>());
+            SetField(reorderCtrlType, reorderComp, "editModeButton", orderBtn);
+            SetField(reorderCtrlType, reorderComp, "saveOrderButton", saveBtn);
+            SetField(reorderCtrlType, reorderComp, "cancelButton", cancelBtn);
+            SetField(reorderCtrlType, reorderComp, "statusText", orderStatus);
 
             var scenePath = "Assets/Scenes/LevelSelectScene.unity";
             EditorSceneManager.SaveScene(scene, scenePath);
@@ -124,8 +175,8 @@ public static class LevelSelectBuilder
         }
     }
 
-    static void BuildLevelTile(Transform parent, int idx, Vector2 pos, Vector2 size,
-        bool unlocked, Font font, Type menuBtnType, Type levelBtnType)
+    static void BuildLevelTile(Transform parent, int idx, string levelId, string displayName, Vector2 pos, Vector2 size,
+        bool unlocked, string prerequisiteLevelId, Font font, Type menuBtnType, Type levelBtnType, Type dragTileType)
     {
         // Root tile: Image + Button + CanvasGroup + LevelButton + MenuButton + AudioSource
         var tile = new GameObject("Level_" + idx,
@@ -152,6 +203,7 @@ public static class LevelSelectBuilder
 
         // LevelButton (lock + stars)
         var levelComp = tile.AddComponent(levelBtnType) as MonoBehaviour;
+        if (dragTileType != null) tile.AddComponent(dragTileType);
 
         // Big number label in center
         var numGO = new GameObject("Number", typeof(RectTransform), typeof(CanvasRenderer), typeof(Text));
@@ -165,7 +217,7 @@ public static class LevelSelectBuilder
         numText.text = unlocked ? idx.ToString() : "?";
         numText.alignment = TextAnchor.MiddleCenter;
         numText.font = font;
-        numText.fontSize = 96;
+        numText.fontSize = Mathf.RoundToInt(96 * (size.x / 240f));
         numText.color = Color.white;
         numText.raycastTarget = false;
 
@@ -179,10 +231,10 @@ public static class LevelSelectBuilder
         nameRT.anchoredPosition = new Vector2(0, -8);
         nameRT.sizeDelta = new Vector2(0, 44);
         var nameText = nameGO.GetComponent<Text>();
-        nameText.text = "关卡 " + idx;
+        nameText.text = displayName;
         nameText.alignment = TextAnchor.MiddleCenter;
         nameText.font = font;
-        nameText.fontSize = 30;
+        nameText.fontSize = Mathf.RoundToInt(30 * (size.x / 240f));
         nameText.color = Color.white;
         nameText.raycastTarget = false;
 
@@ -193,8 +245,9 @@ public static class LevelSelectBuilder
         starsRT.anchorMin = new Vector2(1f, 1f);
         starsRT.anchorMax = new Vector2(1f, 1f);
         starsRT.pivot = new Vector2(1f, 1f);
+        float starSize = Mathf.RoundToInt(70 * (size.x / 240f));
         starsRT.anchoredPosition = new Vector2(-12, -12);
-        starsRT.sizeDelta = new Vector2(70, 70);
+        starsRT.sizeDelta = new Vector2(starSize, starSize);
 
         var starGfxType = Type.GetType("StarGraphic, Assembly-CSharp");
         if (starGfxType == null)
@@ -216,8 +269,9 @@ public static class LevelSelectBuilder
         // Wire fields on LevelButton via reflection (to avoid compile-time dep here)
         var t = levelComp.GetType();
         SetField(t, levelComp, "levelIndex", idx);
-        SetField(t, levelComp, "levelName", "关卡 " + idx);
-        SetField(t, levelComp, "levelId", "level_" + idx);
+        SetField(t, levelComp, "levelName", displayName);
+        SetField(t, levelComp, "levelId", levelId);
+        SetField(t, levelComp, "prerequisiteLevelId", prerequisiteLevelId);
         SetField(t, levelComp, "targetScene", "CubeScene");
         SetField(t, levelComp, "isUnlocked", unlocked);
         SetField(t, levelComp, "starsEarned", 0);
@@ -230,5 +284,63 @@ public static class LevelSelectBuilder
     {
         var f = t.GetField(name, BindingFlags.Public | BindingFlags.Instance);
         if (f != null) f.SetValue(target, value);
+    }
+
+    static Button CreateButton(Transform parent, string name, string label, Font font, Color color,
+        Vector2 anchorMin, Vector2 anchorMax, Vector2 pivot, Vector2 anchored, Vector2 size)
+    {
+        var go = new GameObject(name, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Button));
+        go.transform.SetParent(parent, false);
+        var rt = go.GetComponent<RectTransform>();
+        rt.anchorMin = anchorMin;
+        rt.anchorMax = anchorMax;
+        rt.pivot = pivot;
+        rt.anchoredPosition = anchored;
+        rt.sizeDelta = size;
+
+        var img = go.GetComponent<Image>();
+        img.color = color;
+        var btn = go.GetComponent<Button>();
+        btn.targetGraphic = img;
+
+        var txtGO = new GameObject("Label", typeof(RectTransform), typeof(CanvasRenderer), typeof(Text));
+        txtGO.transform.SetParent(go.transform, false);
+        var txtRT = txtGO.GetComponent<RectTransform>();
+        txtRT.anchorMin = Vector2.zero;
+        txtRT.anchorMax = Vector2.one;
+        txtRT.offsetMin = Vector2.zero;
+        txtRT.offsetMax = Vector2.zero;
+
+        var txt = txtGO.GetComponent<Text>();
+        txt.text = label;
+        txt.font = font;
+        txt.fontSize = 28;
+        txt.alignment = TextAnchor.MiddleCenter;
+        txt.color = Color.white;
+        txt.raycastTarget = false;
+        return btn;
+    }
+
+    static Text CreateText(Transform parent, string name, string text,
+        Vector2 anchorMin, Vector2 anchorMax, Vector2 pivot, Vector2 anchored, Vector2 size,
+        Font font, int fontSize, Color color, TextAnchor align)
+    {
+        var go = new GameObject(name, typeof(RectTransform), typeof(CanvasRenderer), typeof(Text));
+        go.transform.SetParent(parent, false);
+        var rt = go.GetComponent<RectTransform>();
+        rt.anchorMin = anchorMin;
+        rt.anchorMax = anchorMax;
+        rt.pivot = pivot;
+        rt.anchoredPosition = anchored;
+        rt.sizeDelta = size;
+
+        var t = go.GetComponent<Text>();
+        t.text = text;
+        t.font = font;
+        t.fontSize = fontSize;
+        t.color = color;
+        t.alignment = align;
+        t.raycastTarget = false;
+        return t;
     }
 }

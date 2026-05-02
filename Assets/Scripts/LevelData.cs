@@ -21,5 +21,6 @@ public class LevelData
         public Vector3Int faceNormal;
         public int kind;        // PipeKind
         public int orientation; // 0..3
+        public int portalGroup; // 传送门配对组号
     }
 }

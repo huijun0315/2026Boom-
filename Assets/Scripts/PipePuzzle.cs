@@ -18,6 +18,7 @@ public class PipePuzzle : MonoBehaviour
         public Vector3Int faceNormal;  // 面外法线，单位轴：±X/±Y/±Z
         public PipeKind kind;
         [Range(0, 3)] public int orientation;
+        public int portalGroup;        // 传送门配对组号
     }
 
     [Header("References")]
@@ -38,8 +39,9 @@ public class PipePuzzle : MonoBehaviour
     public Color waterColor = new Color(0.20f, 0.70f, 1.00f);
     public Color startColor = new Color(0.20f, 1.00f, 0.35f);
     public Color endColor   = new Color(1.00f, 0.35f, 0.35f);
+    public Color portalColor = new Color(0.85f, 0.45f, 1.00f);
 
-    private Material _matEmpty, _matWater, _matStart, _matEnd;
+    private Material _matEmpty, _matWater, _matStart, _matEnd, _matPortal;
     private readonly List<PipeCell> _pipeCells = new List<PipeCell>();
     private bool _built;
 
@@ -192,6 +194,7 @@ public class PipePuzzle : MonoBehaviour
                     faceNormal = d.faceNormal,
                     kind = (PipeKind)d.kind,
                     orientation = d.orientation,
+                    portalGroup = d.portalGroup,
                 });
             }
         }
@@ -210,6 +213,7 @@ public class PipePuzzle : MonoBehaviour
                 faceNormal = c.faceNormal,
                 kind = (int)c.kind,
                 orientation = c.orientation,
+                portalGroup = c.portalGroup,
             });
         }
         return d;
@@ -276,7 +280,7 @@ public class PipePuzzle : MonoBehaviour
         int mod;
         if (c.kind == PipeKind.Straight) mod = 2;
         else if (c.kind == PipeKind.Cross) mod = 1; // 十字管无需旋转
-        else mod = 4; // Start/End/Bend/Tee/Start2
+        else mod = 4; // Start/End/Bend/Tee/Start2/PortalA/PortalB
         c.orientation = (c.orientation + 1) % mod;
         cells[i] = c;
         if (_built) Rebuild();
@@ -338,12 +342,13 @@ public class PipePuzzle : MonoBehaviour
         Shader sh = Shader.Find("Standard");
         if (sh == null) sh = Shader.Find("Universal Render Pipeline/Lit");
         if (sh == null) sh = Shader.Find("Unlit/Color");
-        _matEmpty = new Material(sh) { name = "PipeEmpty", color = emptyColor };
-        _matWater = new Material(sh) { name = "PipeWater", color = waterColor };
-        _matStart = new Material(sh) { name = "PipeStart", color = startColor };
-        _matEnd   = new Material(sh) { name = "PipeEnd",   color = endColor   };
+        _matEmpty  = new Material(sh) { name = "PipeEmpty",  color = emptyColor };
+        _matWater  = new Material(sh) { name = "PipeWater",  color = waterColor };
+        _matStart  = new Material(sh) { name = "PipeStart",  color = startColor };
+        _matEnd    = new Material(sh) { name = "PipeEnd",    color = endColor   };
+        _matPortal = new Material(sh) { name = "PipePortal", color = portalColor };
         // 管道材质：光滑半金属质感
-        foreach (var m in new[] { _matEmpty, _matWater, _matStart, _matEnd })
+        foreach (var m in new[] { _matEmpty, _matWater, _matStart, _matEnd, _matPortal })
         {
             if (m.HasProperty("_Glossiness")) m.SetFloat("_Glossiness", 0.65f);
             if (m.HasProperty("_Smoothness")) m.SetFloat("_Smoothness", 0.65f);
@@ -364,6 +369,11 @@ public class PipePuzzle : MonoBehaviour
         {
             _matEnd.EnableKeyword("_EMISSION");
             _matEnd.SetColor("_EmissionColor", endColor * 0.2f);
+        }
+        if (_matPortal.HasProperty("_EmissionColor"))
+        {
+            _matPortal.EnableKeyword("_EMISSION");
+            _matPortal.SetColor("_EmissionColor", portalColor * 0.35f);
         }
     }
 
@@ -404,10 +414,12 @@ public class PipePuzzle : MonoBehaviour
             var pc = cellGO.AddComponent<PipeCell>();
             pc.kind = cfg.kind;
             pc.orientation = cfg.orientation;
+            pc.portalGroup = cfg.portalGroup;
             pc.matEmpty = _matEmpty;
             pc.matWater = _matWater;
             pc.matStart = _matStart;
             pc.matEnd   = _matEnd;
+            pc.matPortal = _matPortal;
 
             var rends = new List<Renderer>();
             var eps = pc.LocalEndpoints2D();
@@ -456,6 +468,34 @@ public class PipePuzzle : MonoBehaviour
                     tm.alignment = TextAlignment.Center;
                     pc.capacityLabel = tm;
                 }
+            }
+
+            // 传送门标记：菱形环（区别于起点/终点的圆柱）
+            if (cfg.kind == PipeKind.PortalA || cfg.kind == PipeKind.PortalB)
+            {
+                var portalMarker = new GameObject("PortalMarker");
+                portalMarker.transform.SetParent(cellGO.transform, false);
+                portalMarker.transform.localPosition = Vector3.zero;
+                // 用扁球做菱形标记
+                portalMarker.transform.localScale = new Vector3(pipeRadius * 3.0f, pipeRadius * 3.0f, pipeRadius * 1.2f);
+                var pmf = portalMarker.AddComponent<MeshFilter>();
+                pmf.sharedMesh = CreateSphereMesh(16, 12);
+                var pmr = portalMarker.AddComponent<MeshRenderer>();
+                pmr.sharedMaterial = _matPortal;
+                rends.Add(pmr);
+
+                // 传送门上显示组号
+                var grpLabel = new GameObject("PortalGroupLabel");
+                grpLabel.transform.SetParent(cellGO.transform, false);
+                grpLabel.transform.localPosition = Vector3.forward * 0.01f;
+                var tm = grpLabel.AddComponent<TextMesh>();
+                tm.text = (cfg.kind == PipeKind.PortalA ? "A" : "B") + cfg.portalGroup;
+                tm.fontSize = 48;
+                tm.characterSize = pipeRadius * 0.55f;
+                tm.color = Color.white;
+                tm.anchor = TextAnchor.MiddleCenter;
+                tm.alignment = TextAlignment.Center;
+                pc.capacityLabel = tm; // 复用 capacityLabel 的 LateUpdate 朝向逻辑
             }
 
             // 三通管/十字管中心加一个球形接头
@@ -610,7 +650,43 @@ public class PipePuzzle : MonoBehaviour
             eps.Add(arr);
         }
 
-        // ----- 全局 BFS：确定哪些格有水 -----
+        // ----- 构建传送门配对表：PortalA(group) → PortalB(group) 索引 -----
+        // 水流过 PortalA → 传送到同组 PortalB，反之亦然
+        var portalPair = new Dictionary<int, int>(); // cell index → paired cell index
+        {
+            // group → list of (index, kind)
+            var groupA = new Dictionary<int, List<int>>();
+            var groupB = new Dictionary<int, List<int>>();
+            for (int i = 0; i < n; i++)
+            {
+                if (_pipeCells[i].kind == PipeKind.PortalA)
+                {
+                    int g = _pipeCells[i].portalGroup;
+                    if (!groupA.ContainsKey(g)) groupA[g] = new List<int>();
+                    groupA[g].Add(i);
+                }
+                else if (_pipeCells[i].kind == PipeKind.PortalB)
+                {
+                    int g = _pipeCells[i].portalGroup;
+                    if (!groupB.ContainsKey(g)) groupB[g] = new List<int>();
+                    groupB[g].Add(i);
+                }
+            }
+            foreach (var kv in groupA)
+            {
+                List<int> bList;
+                if (!groupB.TryGetValue(kv.Key, out bList)) continue;
+                // 1:1 配对（多余的忽略）
+                int pairs = Mathf.Min(kv.Value.Count, bList.Count);
+                for (int p = 0; p < pairs; p++)
+                {
+                    portalPair[kv.Value[p]] = bList[p];
+                    portalPair[bList[p]] = kv.Value[p];
+                }
+            }
+        }
+
+        // ----- 全局 BFS：确定哪些格有水（含传送门跳跃） -----
         var filled = new bool[n];
         var q = new Queue<int>();
         for (int i = 0; i < n; i++)
@@ -620,6 +696,7 @@ public class PipePuzzle : MonoBehaviour
         {
             int u = q.Dequeue();
             var ua = eps[u];
+            // 物理管道相邻
             for (int v = 0; v < n; v++)
             {
                 if (filled[v] || v == u) continue;
@@ -629,6 +706,13 @@ public class PipePuzzle : MonoBehaviour
                     for (int j = 0; j < va.Length; j++)
                         if ((ua[i] - va[j]).sqrMagnitude < 0.02f) { connect = true; break; }
                 if (connect) { filled[v] = true; q.Enqueue(v); }
+            }
+            // 传送门跳跃：当前格是传送门 → 配对格也灌水
+            int paired;
+            if (portalPair.TryGetValue(u, out paired) && !filled[paired])
+            {
+                filled[paired] = true;
+                q.Enqueue(paired);
             }
         }
 
@@ -662,6 +746,13 @@ public class PipePuzzle : MonoBehaviour
                         for (int j = 0; j < va.Length; j++)
                             if ((ua[i] - va[j]).sqrMagnitude < 0.02f) { connect = true; break; }
                     if (connect) { visited[v] = true; sq.Enqueue(v); }
+                }
+                // 传送门跳跃
+                int pp;
+                if (portalPair.TryGetValue(u, out pp) && !visited[pp])
+                {
+                    visited[pp] = true;
+                    sq.Enqueue(pp);
                 }
             }
         }
@@ -710,6 +801,13 @@ public class PipePuzzle : MonoBehaviour
                 int prev = PlayerPrefs.GetInt(key, 0);
                 int now = EarnedStarThisRun ? 1 : 0;
                 if (now > prev) { PlayerPrefs.SetInt(key, now); PlayerPrefs.Save(); }
+
+                string clearKey = "clear_" + loadedLevelId;
+                if (PlayerPrefs.GetInt(clearKey, 0) == 0)
+                {
+                    PlayerPrefs.SetInt(clearKey, 1);
+                    PlayerPrefs.Save();
+                }
             }
             // 通知引导弹窗管理器检查星星数触发
             if (TutorialPopupManager.Instance != null)
@@ -746,7 +844,7 @@ public class PipePuzzle : MonoBehaviour
     /// </summary>
     public bool LoadNextLevel(string sceneName = "CubeScene")
     {
-        string nextId = ComputeNextLevelId(loadedLevelId);
+        string nextId = GetNextLevelId(loadedLevelId);
         if (string.IsNullOrEmpty(nextId)) return false;
         var data = LevelStore.Load(nextId);
         if (data == null) return false;
@@ -759,15 +857,25 @@ public class PipePuzzle : MonoBehaviour
         return true;
     }
 
-    static string ComputeNextLevelId(string id)
+    public static string GetNextLevelId(string id)
     {
         if (string.IsNullOrEmpty(id)) return null;
-        int i = id.Length - 1;
-        while (i >= 0 && char.IsDigit(id[i])) i--;
-        if (i == id.Length - 1) return null; // 末尾不是数字
-        string prefix = id.Substring(0, i + 1);
+
+        var ordered = LevelStore.LoadOrderedIds();
+        if (ordered != null)
+        {
+            for (int i = 0; i < ordered.Length; i++)
+            {
+                if (ordered[i] != id) continue;
+                return (i + 1 < ordered.Length) ? ordered[i + 1] : null;
+            }
+        }
+
+        int p = id.Length - 1;
+        while (p >= 0 && char.IsDigit(id[p])) p--;
+        if (p == id.Length - 1) return null;
         int num;
-        if (!int.TryParse(id.Substring(i + 1), out num)) return null;
-        return prefix + (num + 1);
+        if (!int.TryParse(id.Substring(p + 1), out num)) return null;
+        return id.Substring(0, p + 1) + (num + 1);
     }
 }

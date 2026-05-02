@@ -15,7 +15,11 @@ public enum PipeKind
     /// <summary>十字管：连接四条边的中点（+ 型接头）</summary>
     Cross,
     /// <summary>二层起点：始终有水，1 个出口，容量为 2（可供 2 个终点用水，上面显示剩余容量）</summary>
-    Start2
+    Start2,
+    /// <summary>传送入口：水从此处进入，传送到同 portalGroup 的 PortalB 出口</summary>
+    PortalA,
+    /// <summary>传送出口：水从同 portalGroup 的 PortalA 传送到此处流出</summary>
+    PortalB
 }
 
 /// <summary>
@@ -25,8 +29,10 @@ public enum PipeKind
 public class PipeCell : MonoBehaviour
 {
     public PipeKind kind;
-    [Tooltip("Straight: 0=沿 U, 1=沿 V。Bend/Tee/Start2: 0..3 象限。Start/End: 0..3 方向。Cross: 0 (无需旋转)")]
+    [Tooltip("Straight: 0=沿 U, 1=沿 V。Bend/Tee/Start2: 0..3 象限。Start/End/PortalA/PortalB: 0..3 方向。Cross: 0 (无需旋转)")]
     [Range(0, 3)] public int orientation;
+    [Tooltip("传送门配对组号（同组号的 PortalA 和 PortalB 配对）")]
+    public int portalGroup;
 
     [System.NonSerialized] public bool hasWater;
 
@@ -36,6 +42,7 @@ public class PipeCell : MonoBehaviour
     [System.NonSerialized] public Material matWater;
     [System.NonSerialized] public Material matStart;
     [System.NonSerialized] public Material matEnd;
+    [System.NonSerialized] public Material matPortal;
 
     /// <summary>起点剩余容量（Start=1, Start2=2），由 PipePuzzle.DoRecompute 更新。</summary>
     [System.NonSerialized] public int remainingCapacity;
@@ -74,6 +81,8 @@ public class PipeCell : MonoBehaviour
             case PipeKind.Cross:
                 return new[] { new Vector2(-0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, -0.5f), new Vector2(0f, 0.5f) };
 
+            case PipeKind.PortalA:
+            case PipeKind.PortalB:
             case PipeKind.Start2:
             case PipeKind.Start:
             case PipeKind.End:
@@ -95,6 +104,8 @@ public class PipeCell : MonoBehaviour
         Material m;
         if (kind == PipeKind.Start || kind == PipeKind.Start2) m = matStart != null ? matStart : matWater;
         else if (kind == PipeKind.End)    m = hasWater ? (matEnd != null ? matEnd : matWater) : matEmpty;
+        else if (kind == PipeKind.PortalA || kind == PipeKind.PortalB)
+            m = hasWater ? matWater : (matPortal != null ? matPortal : matEmpty);
         else                              m = hasWater ? matWater : matEmpty;
         for (int i = 0; i < pipeRenderers.Length; i++)
             if (pipeRenderers[i] != null) pipeRenderers[i].sharedMaterial = m;
@@ -113,6 +124,8 @@ public class PipeCell : MonoBehaviour
     public void UpdateCapacityDisplay()
     {
         if (capacityLabel == null) return;
+        // 传送门标签由 BuildVisuals 写入，不在此覆盖
+        if (kind == PipeKind.PortalA || kind == PipeKind.PortalB) return;
         int cap = CapacityForKind(kind);
         if (cap > 0)
             capacityLabel.text = remainingCapacity.ToString();

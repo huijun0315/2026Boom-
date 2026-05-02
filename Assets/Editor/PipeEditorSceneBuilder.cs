@@ -98,7 +98,7 @@ public static class PipeEditorSceneBuilder
                 font: font, fontSize: 18, color: new Color(1, 1, 1, 0.8f), align: TextAnchor.UpperLeft);
 
             // Brush buttons
-            string[] names = { "起点 Start", "终点 End", "直管 Straight", "弯管 Bend", "三通 Tee", "十字 Cross", "二层起点 Start2", "擦除 Erase" };
+            string[] names = { "起点 Start", "终点 End", "直管 Straight", "弯管 Bend", "三通 Tee", "十字 Cross", "二层起点 Start2", "传送入口 PortalA", "传送出口 PortalB", "擦除 Erase" };
             Color[] cols = {
                 new Color(0.20f, 0.80f, 0.35f),
                 new Color(0.90f, 0.35f, 0.35f),
@@ -107,12 +107,14 @@ public static class PipeEditorSceneBuilder
                 new Color(0.85f, 0.60f, 0.20f),
                 new Color(0.50f, 0.75f, 0.80f),
                 new Color(0.40f, 0.90f, 0.55f),
+                new Color(0.85f, 0.45f, 1.00f),
+                new Color(0.65f, 0.30f, 0.85f),
                 new Color(0.45f, 0.45f, 0.45f),
             };
             var brushButtons = new Button[names.Length];
             var brushBgs = new Image[names.Length];
             float y0 = -170f;
-            float h = 64f, gap = 10f;
+            float h = 52f, gap = 6f;
             for (int i = 0; i < names.Length; i++)
             {
                 var bt = CreateButton(panel, "Brush_" + i, names[i], font, cols[i],
@@ -184,6 +186,20 @@ public static class PipeEditorSceneBuilder
                 anchorMin: new Vector2(1, 1), anchorMax: new Vector2(1, 1), pivot: new Vector2(1, 1),
                 anchored: new Vector2(-20, -152), size: new Vector2(140, 56));
 
+            CreateText(canvasGO.transform, "InsertIndexLabel", "插入位次", 
+                anchorMin: new Vector2(1, 1), anchorMax: new Vector2(1, 1), pivot: new Vector2(1, 1),
+                anchored: new Vector2(-20, -222), size: new Vector2(140, 28),
+                font: font, fontSize: 16, color: Color.white, align: TextAnchor.MiddleCenter);
+
+            var insertIndexField = CreateInputField(canvasGO.transform, "InsertIndexField", "8", font,
+                anchorMin: new Vector2(1, 1), anchorMax: new Vector2(1, 1), pivot: new Vector2(1, 1),
+                anchored: new Vector2(-20, -252), size: new Vector2(140, 40));
+            insertIndexField.contentType = InputField.ContentType.IntegerNumber;
+
+            var insertBtn = CreateButton(canvasGO.transform, "InsertBtn", "插入顺序", font, new Color(0.72f, 0.50f, 0.20f),
+                anchorMin: new Vector2(1, 1), anchorMax: new Vector2(1, 1), pivot: new Vector2(1, 1),
+                anchored: new Vector2(-20, -302), size: new Vector2(140, 56));
+
             // ----- Attach PipeEditor -----
             var editorGO = new GameObject("PipeEditor");
             var pe = editorGO.AddComponent(editorType) as MonoBehaviour;
@@ -199,6 +215,8 @@ public static class PipeEditorSceneBuilder
             SetField(editorType, pe, "levelIdField", idField);
             SetField(editorType, pe, "levelNameField", nameField);
             SetField(editorType, pe, "moveLimitField", limitField);
+            SetField(editorType, pe, "insertIndexField", insertIndexField);
+            SetField(editorType, pe, "insertButton", insertBtn.btn);
             SetField(editorType, pe, "statusText", statusTxt);
             SetField(editorType, pe, "previewButton", previewBtn.btn);
             SetField(editorType, pe, "resetOrientButton", resetOrientBtn.btn);

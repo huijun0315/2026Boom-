@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Reflection;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
@@ -21,7 +22,7 @@ public class PipeEditor : MonoBehaviour
     public Camera cam;
 
     [Header("UI Refs (auto-wired)")]
-    public Button[] brushButtons;   // 0=Start 1=End 2=Straight 3=Bend 4=Tee 5=Cross 6=Start2 7=Erase
+    public Button[] brushButtons;   // 0=Start 1=End 2=Straight 3=Bend 4=Tee 5=Cross 6=Start2 7=PortalA 8=PortalB 9=Erase
     public Image[] brushButtonBgs;
     public Button saveButton;
     public Button loadButton;
@@ -31,6 +32,8 @@ public class PipeEditor : MonoBehaviour
     public InputField levelIdField;
     public InputField levelNameField;
     public InputField moveLimitField;
+    public InputField insertIndexField;
+    public Button insertButton;
     public Text statusText;
 
     [Header("Preview Mode")]
@@ -44,7 +47,7 @@ public class PipeEditor : MonoBehaviour
     private Quaternion _savedCubeRotation;
     private bool _isPreview;
 
-    public enum Brush { Start, End, Straight, Bend, Tee, Cross, Start2, Erase }
+    public enum Brush { Start, End, Straight, Bend, Tee, Cross, Start2, PortalA, PortalB, Erase }
     public Brush currentBrush = Brush.Straight;
 
     void Awake()
@@ -77,6 +80,7 @@ public class PipeEditor : MonoBehaviour
             }
         }
         if (saveButton  != null) saveButton .onClick.AddListener(OnSaveClicked);
+        if (insertButton != null) insertButton.onClick.AddListener(OnInsertClicked);
         if (loadButton  != null) loadButton .onClick.AddListener(OnLoadClicked);
         if (clearButton != null) clearButton.onClick.AddListener(OnClearClicked);
         if (backButton  != null) backButton .onClick.AddListener(OnBackClicked);
@@ -123,6 +127,8 @@ public class PipeEditor : MonoBehaviour
         if (Input.GetKeyDown(KeyCode.Alpha6)) { SetBrush(5); return; }
         if (Input.GetKeyDown(KeyCode.Alpha7)) { SetBrush(6); return; }
         if (Input.GetKeyDown(KeyCode.Alpha8)) { SetBrush(7); return; }
+        if (Input.GetKeyDown(KeyCode.Alpha9)) { SetBrush(8); return; }
+        if (Input.GetKeyDown(KeyCode.Alpha0)) { SetBrush(9); return; }
 
         if (puzzle == null || cube == null || cam == null) return;
 
@@ -209,13 +215,15 @@ public class PipeEditor : MonoBehaviour
     {
         switch (b)
         {
-            case Brush.Start:  return PipeKind.Start;
-            case Brush.End:    return PipeKind.End;
-            case Brush.Bend:   return PipeKind.Bend;
-            case Brush.Tee:    return PipeKind.Tee;
-            case Brush.Cross:  return PipeKind.Cross;
-            case Brush.Start2: return PipeKind.Start2;
-            default:           return PipeKind.Straight;
+            case Brush.Start:   return PipeKind.Start;
+            case Brush.End:     return PipeKind.End;
+            case Brush.Bend:    return PipeKind.Bend;
+            case Brush.Tee:     return PipeKind.Tee;
+            case Brush.Cross:   return PipeKind.Cross;
+            case Brush.Start2:  return PipeKind.Start2;
+            case Brush.PortalA: return PipeKind.PortalA;
+            case Brush.PortalB: return PipeKind.PortalB;
+            default:            return PipeKind.Straight;
         }
     }
 
@@ -233,11 +241,57 @@ public class PipeEditor : MonoBehaviour
         puzzle.SetMoveLimit(lim);
         var data = puzzle.ExportData(id, dn);
         LevelStore.Save(data);
-        SetStatus("已保存：Assets/Resources/Levels/" + id + ".json  (限步=" + lim + ")");
+        bool appended = EnsureInLevelOrder(id);
+        string rebuildMsg = RebuildLevelSelectScene();
+        SetStatus("已保存：Assets/Resources/Levels/" + id + ".json  (限步=" + lim + ")"
+                  + (appended ? "，并已自动新增关卡Icon顺序" : "")
+                  + "\n" + rebuildMsg);
 #else
         SetStatus("运行时构建不支持保存（仅 Editor 下可写入 Assets）");
 #endif
     }
+
+#if UNITY_EDITOR
+    bool EnsureInLevelOrder(string id)
+    {
+        if (string.IsNullOrEmpty(id)) return false;
+
+        var ordered = new List<string>(LevelStore.LoadOrderedIds());
+        bool appended = !ordered.Contains(id);
+        if (appended) ordered.Add(id);
+        LevelStore.SaveLevelOrder(ordered.ToArray());
+        return appended;
+    }
+
+    string RebuildLevelSelectScene()
+    {
+        var t = System.Type.GetType("LevelSelectBuilder, Assembly-CSharp-Editor");
+        if (t == null)
+        {
+            var assemblies = System.AppDomain.CurrentDomain.GetAssemblies();
+            for (int i = 0; i < assemblies.Length; i++)
+            {
+                t = assemblies[i].GetType("LevelSelectBuilder", false);
+                if (t != null) break;
+            }
+        }
+        if (t == null) return "自动重建选关失败：找不到 LevelSelectBuilder";
+
+        var m = t.GetMethod("Build", BindingFlags.Public | BindingFlags.Static);
+        if (m == null) return "自动重建选关失败：找不到 Build()";
+
+        try
+        {
+            var ret = m.Invoke(null, null) as string;
+            if (!string.IsNullOrEmpty(ret)) return "自动重建选关：" + ret;
+            return "自动重建选关：完成";
+        }
+        catch (System.Exception ex)
+        {
+            return "自动重建选关异常：" + ex.GetType().Name;
+        }
+    }
+#endif
 
     public void OnLoadClicked()
     {
@@ -249,6 +303,45 @@ public class PipeEditor : MonoBehaviour
         if (levelNameField != null) levelNameField.text = data.displayName;
         if (moveLimitField != null) moveLimitField.text = data.moveLimit.ToString();
         SetStatus("已载入：" + id + "（" + data.cells.Count + " 格，限步=" + data.moveLimit + "）");
+    }
+
+    public void OnInsertClicked()
+    {
+#if UNITY_EDITOR
+        if (puzzle == null) return;
+
+        string id = (levelIdField != null && !string.IsNullOrEmpty(levelIdField.text)) ? levelIdField.text.Trim() : "";
+        if (string.IsNullOrEmpty(id))
+        {
+            SetStatus("请先填写关卡ID");
+            return;
+        }
+
+        string dn = (levelNameField != null && !string.IsNullOrEmpty(levelNameField.text)) ? levelNameField.text : id;
+        int lim = 0;
+        if (moveLimitField != null && !string.IsNullOrEmpty(moveLimitField.text))
+            int.TryParse(moveLimitField.text.Trim(), out lim);
+
+        puzzle.SetMoveLimit(lim);
+        var data = puzzle.ExportData(id, dn);
+        LevelStore.Save(data);
+
+        var ordered = new List<string>(LevelStore.LoadOrderedIds());
+        for (int i = ordered.Count - 1; i >= 0; i--)
+            if (ordered[i] == id) ordered.RemoveAt(i);
+
+        int insertAt = ordered.Count;
+        int oneBasedIndex;
+        if (insertIndexField != null && int.TryParse(insertIndexField.text, out oneBasedIndex))
+            insertAt = Mathf.Clamp(oneBasedIndex - 1, 0, ordered.Count);
+
+        ordered.Insert(insertAt, id);
+        LevelStore.SaveLevelOrder(ordered.ToArray());
+
+        SetStatus("已插入顺序：" + id + " -> 第" + (insertAt + 1) + "位（共" + ordered.Count + "关）");
+#else
+        SetStatus("运行时构建不支持插入顺序（仅 Editor 下可写入 Assets）");
+#endif
     }
 
     public void OnClearClicked()

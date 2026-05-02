@@ -3,6 +3,9 @@ using UnityEngine.UI;
 
 public class AchievementPageController : MonoBehaviour
 {
+    public const string ReturnScenePrefKey = "achievement_return_scene";
+    public const string ReturnPausePrefKey = "achievement_return_pause";
+
     [Header("Scene")]
     public string backSceneName = "StartScene";
 
@@ -54,6 +57,26 @@ public class AchievementPageController : MonoBehaviour
     int _current = 0;
     int _selectedSkin = 0;
     int _totalStars = 0;
+
+    public static void SetReturnTarget(string sceneName, bool restorePausePanel)
+    {
+        if (string.IsNullOrEmpty(sceneName)) return;
+        PlayerPrefs.SetString(ReturnScenePrefKey, sceneName);
+        PlayerPrefs.SetInt(ReturnPausePrefKey, restorePausePanel ? 1 : 0);
+        PlayerPrefs.Save();
+    }
+
+    public static bool ShouldRestorePausePanel(string currentSceneName)
+    {
+        if (PlayerPrefs.GetInt(ReturnPausePrefKey, 0) != 1) return false;
+        var target = PlayerPrefs.GetString(ReturnScenePrefKey, string.Empty);
+        if (string.IsNullOrEmpty(target) || target != currentSceneName) return false;
+
+        PlayerPrefs.DeleteKey(ReturnPausePrefKey);
+        PlayerPrefs.DeleteKey(ReturnScenePrefKey);
+        PlayerPrefs.Save();
+        return true;
+    }
 
     void Start()
     {
@@ -116,10 +139,7 @@ public class AchievementPageController : MonoBehaviour
                 iconNumberTexts[i].gameObject.SetActive(GetIconSprite(i) == null);
             }
 
-            if (iconButtons != null && i < iconButtons.Length && iconButtons[i] != null)
-            {
-                iconButtons[i].interactable = IsUnlocked(i);
-            }
+            // 未解锁皮肤也可点击查看，不禁用按钮
 
             if (iconConditionTexts != null && i < iconConditionTexts.Length && iconConditionTexts[i] != null)
             {
@@ -227,8 +247,9 @@ public class AchievementPageController : MonoBehaviour
                 var img = iconButtons[i].GetComponent<Image>();
                 if (img != null)
                 {
-                    if (!IsUnlocked(i)) img.color = iconLockedColor;
-                    else img.color = (i == _current) ? iconSelectedColor : iconNormalColor;
+                    if (i == _current) img.color = iconSelectedColor;
+                    else if (!IsUnlocked(i)) img.color = iconLockedColor;
+                    else img.color = iconNormalColor;
                 }
             }
         }
@@ -264,9 +285,18 @@ public class AchievementPageController : MonoBehaviour
 
     public void Back()
     {
+        string targetScene = PlayerPrefs.GetString(ReturnScenePrefKey, backSceneName);
+        bool restorePausePanel = PlayerPrefs.GetInt(ReturnPausePrefKey, 0) == 1;
+        if (!restorePausePanel)
+        {
+            PlayerPrefs.DeleteKey(ReturnPausePrefKey);
+            PlayerPrefs.DeleteKey(ReturnScenePrefKey);
+            PlayerPrefs.Save();
+        }
+
         if (SceneTransitioner.Instance != null)
-            SceneTransitioner.Instance.LoadSceneWithFade(backSceneName);
+            SceneTransitioner.Instance.LoadSceneWithFade(targetScene);
         else
-            UnityEngine.SceneManagement.SceneManager.LoadScene(backSceneName);
+            UnityEngine.SceneManagement.SceneManager.LoadScene(targetScene);
     }
 }

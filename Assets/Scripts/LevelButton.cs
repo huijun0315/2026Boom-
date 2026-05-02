@@ -12,6 +12,8 @@ public class LevelButton : MonoBehaviour
     public string levelId = "level_1";
     [Tooltip("点击后跳转到的场景名")]
     public string targetScene = "CubeScene";
+    [Tooltip("前置关卡ID（为空表示首关，始终解锁）")]
+    public string prerequisiteLevelId = "";
 
     [Header("State")]
     [Tooltip("此关卡是否解锁")]
@@ -47,10 +49,22 @@ public class LevelButton : MonoBehaviour
         if (buttonImage == null) buttonImage = GetComponent<Image>();
 
         // 从 PlayerPrefs 读取已保存的星星进度
+        int saved = 0;
         if (!string.IsNullOrEmpty(levelId))
         {
-            int saved = PlayerPrefs.GetInt("star_" + levelId, 0);
+            saved = PlayerPrefs.GetInt("star_" + levelId, 0);
             if (saved > starsEarned) starsEarned = Mathf.Min(saved, maxStars);
+        }
+
+        if (!string.IsNullOrEmpty(prerequisiteLevelId))
+        {
+            int prevClear = PlayerPrefs.GetInt("clear_" + prerequisiteLevelId, 0);
+            int selfClear = !string.IsNullOrEmpty(levelId) ? PlayerPrefs.GetInt("clear_" + levelId, 0) : 0;
+            isUnlocked = (prevClear > 0) || (selfClear > 0);
+        }
+        else
+        {
+            isUnlocked = true;
         }
 
         ApplyState();
@@ -106,6 +120,11 @@ public class LevelButton : MonoBehaviour
 
         if (nameText != null)
             nameText.text = levelName;
+
+        var numberTf = transform.Find("Number");
+        var numberText = numberTf != null ? numberTf.GetComponent<Text>() : null;
+        if (numberText != null)
+            numberText.text = isUnlocked ? levelIndex.ToString() : "?";
 
         ApplyStars();
     }

@@ -45,6 +45,7 @@ public class StartMenuController : MonoBehaviour
 
     public void OpenAchievementMuseum()
     {
+        AchievementPageController.SetReturnTarget(SceneManager.GetActiveScene().name, false);
         SceneTransitioner.Instance.LoadSceneWithFade(achievementSceneName, 0.6f);
     }
 }

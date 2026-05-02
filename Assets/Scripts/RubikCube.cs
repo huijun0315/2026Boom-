@@ -706,6 +706,8 @@ public class RubikCube : MonoBehaviour
                 {
                     Vector3 refDirWorld = (transform.rotation * _layerRefDirLocal).normalized;
                     float raw = Vector3.SignedAngle(refDirWorld, curDir.normalized, axisWorld);
+
+                    // 1:1 跟手：用连续累加解决 ±180 跳跃，不加 gain / 不限单帧角度
                     float deltaRaw;
                     if (_layerArcHasPrev)
                         deltaRaw = Mathf.DeltaAngle(_layerArcPrevRaw, raw);
@@ -715,11 +717,9 @@ public class RubikCube : MonoBehaviour
                     _layerArcPrevRaw = raw;
                     _layerArcHasPrev = true;
 
-                    // 阻尼 + 单帧角速度限制，抑制快拖与局部反向抖动
-                    float delta = deltaRaw * Mathf.Max(0.01f, layerDragGain);
-                    float maxStep = Mathf.Max(1f, layerMaxAnglePerFrame);
-                    delta = Mathf.Clamp(delta, -maxStep, maxStep);
-                    return _layerAngle + delta;
+                    // 微小抖动死区：角度变化太小时不更新，防止手指静止时噪声
+                    if (Mathf.Abs(deltaRaw) < 0.15f) return _layerAngle;
+                    return _layerAngle + deltaRaw;
                 }
                 // 鼠标太靠近旋转轴：角度会对像素噪声高度敏感，冻结到上一帧
                 return _layerAngle;
@@ -728,12 +728,9 @@ public class RubikCube : MonoBehaviour
             return _layerAngle;
         }
 
-        // 回落：线性像素模式（和原先手感一致）
+        // 回落：线性像素模式 —— 同样 1:1 跟手
         float pixelAlong = Vector2.Dot((Vector2)(mouseScreen - _dragStart), _layerSignedScreenTangent);
-        float target = pixelAlong * layerDragSpeed;
-        float d = (target - _layerAngle) * Mathf.Max(0.01f, layerDragGain);
-        d = Mathf.Clamp(d, -Mathf.Max(1f, layerMaxAnglePerFrame), Mathf.Max(1f, layerMaxAnglePerFrame));
-        return _layerAngle + d;
+        return pixelAlong * layerDragSpeed;
     }
 
     bool TryRayToAxisPlane(Vector2 screenPos, Vector3 axisWorld, Vector3 planePoint, out Vector3 hitPoint)

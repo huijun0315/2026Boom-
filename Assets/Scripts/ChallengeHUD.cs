@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.SceneManagement;
 
 /// <summary>
 /// 关卡场景左上角挑战信息 HUD：
@@ -23,6 +24,8 @@ public class ChallengeHUD : MonoBehaviour
         if (puzzle == null) puzzle = FindObjectOfType<PipePuzzle>();
         if (cube == null) cube = FindObjectOfType<RubikCube>();
         BuildUI();
+        if (AchievementPageController.ShouldRestorePausePanel(SceneManager.GetActiveScene().name))
+            OnPauseClicked();
         Refresh();
     }
 
@@ -220,6 +223,9 @@ public class ChallengeHUD : MonoBehaviour
         t.color = Color.white;
         t.raycastTarget = false;
 
+        var resumeBtn = CreatePauseButton(_pausePanel.transform, font, "继续游戏", new Vector2(0, 150), new Color(0.22f, 0.62f, 0.32f));
+        resumeBtn.onClick.AddListener(OnPauseResumeClicked);
+
         var backBtn = CreatePauseButton(_pausePanel.transform, font, "返回", new Vector2(0, 30), new Color(0.24f, 0.45f, 0.78f));
         backBtn.onClick.AddListener(OnPauseBackClicked);
 
@@ -297,11 +303,18 @@ public class ChallengeHUD : MonoBehaviour
 
     void OnPauseAchievementClicked()
     {
+        AchievementPageController.SetReturnTarget(SceneManager.GetActiveScene().name, true);
         Time.timeScale = 1f;
         if (SceneTransitioner.Instance != null)
             SceneTransitioner.Instance.LoadSceneWithFade(_achievementSceneName);
         else
             UnityEngine.SceneManagement.SceneManager.LoadScene(_achievementSceneName);
+    }
+
+    void OnPauseResumeClicked()
+    {
+        Time.timeScale = 1f;
+        if (_pausePanel != null) _pausePanel.SetActive(false);
     }
 
     public void Refresh()

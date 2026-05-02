@@ -10,13 +10,19 @@ using UnityEditor.SceneManagement;
 
 public static class AchievementSceneBuilder
 {
+    static int _skinCount = 5;
+    static int[] _skinStars;
+
     [MenuItem("Tools/Create Achievement Scene")]
     public static void BuildMenu()
     {
-        Debug.Log(Build());
+        if (!AchievementConfigDialog.Show(_skinCount, _skinStars)) return; // 取消
+        _skinCount = AchievementConfigDialog.resultSkinCount;
+        _skinStars = AchievementConfigDialog.resultStars;
+        Debug.Log(Build(_skinCount, _skinStars));
     }
 
-    public static string Build()
+    public static string Build(int skinCount = 5, int[] perSkinStars = null)
     {
         try
         {
@@ -118,16 +124,16 @@ public static class AchievementSceneBuilder
             urt2.anchoredPosition = new Vector2(0, 18);
             urt2.sizeDelta = new Vector2(0, 56);
 
-            // Left 5 icon rows
-            var iconButtons = new Button[5];
-            var iconImages = new Image[5];
-            var iconNums = new Text[5];
-            var iconLabels = new Text[5];
-            var iconConds = new Text[5];
+            // Left icon rows (skinCount)
+            var iconButtons = new Button[skinCount];
+            var iconImages = new Image[skinCount];
+            var iconNums = new Text[skinCount];
+            var iconLabels = new Text[skinCount];
+            var iconConds = new Text[skinCount];
 
             float y0 = -70f;
-            float rowH = 124f;
-            for (int i = 0; i < 5; i++)
+            float rowH = (skinCount <= 5) ? 124f : Mathf.Max(60f, 620f / skinCount);
+            for (int i = 0; i < skinCount; i++)
             {
                 var row = MakePanel(leftPanel.transform, "Row_" + (i + 1), new Color(0, 0, 0, 0f));
                 var rowRt = row.GetComponent<RectTransform>();
@@ -181,6 +187,25 @@ public static class AchievementSceneBuilder
             if (ctrlType == null) return "ERROR: AchievementPageController not found.";
             var ctrlGO = new GameObject("AchievementPageController");
             var ctrl = ctrlGO.AddComponent(ctrlType) as MonoBehaviour;
+            SetField(ctrlType, ctrl, "skinCount", skinCount);
+
+            // 构建与 skinCount 匹配的默认数组
+            var defaultLabels = new string[skinCount];
+            var defaultSprites = new Sprite[skinCount];
+            var defaultPreview = new Sprite[skinCount];
+            var defaultStars = new int[skinCount];
+            for (int i = 0; i < skinCount; i++)
+            {
+                defaultLabels[i] = "成就 " + (i + 1);
+                defaultStars[i] = (perSkinStars != null && i < perSkinStars.Length)
+                    ? perSkinStars[i]
+                    : i * 2;
+            }
+            SetField(ctrlType, ctrl, "labels", defaultLabels);
+            SetField(ctrlType, ctrl, "iconSprites", defaultSprites);
+            SetField(ctrlType, ctrl, "previewSprites", defaultPreview);
+            SetField(ctrlType, ctrl, "requiredStars", defaultStars);
+
             SetField(ctrlType, ctrl, "iconButtons", iconButtons);
             SetField(ctrlType, ctrl, "iconImages", iconImages);
             SetField(ctrlType, ctrl, "iconNumberTexts", iconNums);

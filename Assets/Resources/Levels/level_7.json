@@ -1,0 +1,42 @@
+{
+    "id": "level_7",
+    "displayName": "传送初识",
+    "moveLimit": 1,
+    "cells": [
+        {
+            "cubieCoord": { "x": -1, "y": 1, "z": 0 },
+            "faceNormal": { "x": 0, "y": 1, "z": 0 },
+            "kind": 0,
+            "orientation": 0,
+            "portalGroup": 0
+        },
+        {
+            "cubieCoord": { "x": 0, "y": 1, "z": 0 },
+            "faceNormal": { "x": 0, "y": 1, "z": 0 },
+            "kind": 2,
+            "orientation": 0,
+            "portalGroup": 0
+        },
+        {
+            "cubieCoord": { "x": 1, "y": 0, "z": -1 },
+            "faceNormal": { "x": 0, "y": 0, "z": -1 },
+            "kind": 7,
+            "orientation": 0,
+            "portalGroup": 0
+        },
+        {
+            "cubieCoord": { "x": -1, "y": 1, "z": -1 },
+            "faceNormal": { "x": 0, "y": 1, "z": 0 },
+            "kind": 8,
+            "orientation": 0,
+            "portalGroup": 0
+        },
+        {
+            "cubieCoord": { "x": 0, "y": 1, "z": -1 },
+            "faceNormal": { "x": 0, "y": 1, "z": 0 },
+            "kind": 1,
+            "orientation": 2,
+            "portalGroup": 0
+        }
+    ]
+}
