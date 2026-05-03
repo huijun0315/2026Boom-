@@ -240,31 +240,38 @@ public class RubikCube : MonoBehaviour
 
     Material MakeStickerMat(Color c)
     {
-        Shader sh = Shader.Find("Standard");
-        if (sh == null) sh = Shader.Find("Universal Render Pipeline/Lit");
-        if (sh == null) sh = Shader.Find("Unlit/Color");
+        Shader sh = RuntimeShaderResolver.ResolveColorShader();
         var m = new Material(sh) { name = "sticker" };
-        m.color = c;
-        // 光滑贴纸质感
-        if (m.HasProperty("_Glossiness")) m.SetFloat("_Glossiness", 0.45f);
-        if (m.HasProperty("_GlossyScale")) m.SetFloat("_GlossyScale", 0.45f);
-        if (m.HasProperty("_Smoothness")) m.SetFloat("_Smoothness", 0.45f);
-        if (m.HasProperty("_Metallic")) m.SetFloat("_Metallic", 0.0f);
+        ApplyColorToMaterial(m, c, 0.45f, 0.0f, Color.black);
         return m;
     }
 
     Material MakeMat(Color c, string name)
     {
-        Shader sh = Shader.Find("Standard");
-        if (sh == null) sh = Shader.Find("Universal Render Pipeline/Lit");
-        if (sh == null) sh = Shader.Find("Unlit/Color");
+        Shader sh = RuntimeShaderResolver.ResolveColorShader();
         var m = new Material(sh) { name = name };
-        m.color = c;
-        // 暗色 body 哑光
-        if (m.HasProperty("_Glossiness")) m.SetFloat("_Glossiness", 0.05f);
-        if (m.HasProperty("_Smoothness")) m.SetFloat("_Smoothness", 0.05f);
-        if (m.HasProperty("_Metallic")) m.SetFloat("_Metallic", 0.0f);
+        ApplyColorToMaterial(m, c, 0.05f, 0.0f, Color.black);
         return m;
+    }
+
+    static void ApplyColorToMaterial(Material m, Color baseColor, float smoothness, float metallic, Color emission)
+    {
+        if (m == null) return;
+
+        if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", baseColor);
+        if (m.HasProperty("_Color")) m.SetColor("_Color", baseColor);
+
+        if (m.HasProperty("_Smoothness")) m.SetFloat("_Smoothness", smoothness);
+        if (m.HasProperty("_Glossiness")) m.SetFloat("_Glossiness", smoothness);
+        if (m.HasProperty("_GlossyScale")) m.SetFloat("_GlossyScale", smoothness);
+
+        if (m.HasProperty("_Metallic")) m.SetFloat("_Metallic", metallic);
+
+        if (m.HasProperty("_EmissionColor"))
+        {
+            if (emission.maxColorComponent > 0.0001f) m.EnableKeyword("_EMISSION");
+            m.SetColor("_EmissionColor", emission);
+        }
     }
 
     // ---------------- Input ----------------

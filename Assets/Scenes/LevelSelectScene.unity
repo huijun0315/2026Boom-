@@ -985,8 +985,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a39cdb5bb6cc157429c857437b1e9a45, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  bgmClip: {fileID: 0}
+  bgmClip: {fileID: 8300000, guid: 2cdfa406165902b458a602f62bd24c5a, type: 3}
   playOnStart: 1
+  autoCreatePlayerIfMissing: 1
 --- !u!4 &389382978
 Transform:
   m_ObjectHideFlags: 0

@@ -59,8 +59,7 @@ public class LevelButton : MonoBehaviour
         if (!string.IsNullOrEmpty(prerequisiteLevelId))
         {
             int prevClear = PlayerPrefs.GetInt("clear_" + prerequisiteLevelId, 0);
-            int selfClear = !string.IsNullOrEmpty(levelId) ? PlayerPrefs.GetInt("clear_" + levelId, 0) : 0;
-            isUnlocked = (prevClear > 0) || (selfClear > 0);
+            isUnlocked = (prevClear > 0);
         }
         else
         {
@@ -77,9 +76,7 @@ public class LevelButton : MonoBehaviour
     {
         if (!isUnlocked) return;
 
-        // 切换到该关卡的 BGM
-        if (levelBGM != null && BGMPlayer.Instance != null)
-            BGMPlayer.Instance.SetClip(levelBGM, true);
+        BGMPlayer.PlayDefaultButtonClick();
 
         PipePuzzle.PendingLevelId = levelId;
         if (SceneTransitioner.Instance != null)
@@ -118,13 +115,17 @@ public class LevelButton : MonoBehaviour
             _cg.blocksRaycasts = isUnlocked;
         }
 
+        var btn = GetComponent<Button>();
+        if (btn != null)
+            btn.interactable = isUnlocked;
+
         if (nameText != null)
             nameText.text = levelName;
 
         var numberTf = transform.Find("Number");
         var numberText = numberTf != null ? numberTf.GetComponent<Text>() : null;
         if (numberText != null)
-            numberText.text = isUnlocked ? levelIndex.ToString() : "?";
+            numberText.text = levelIndex.ToString();
 
         ApplyStars();
     }

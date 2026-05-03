@@ -10,16 +10,23 @@ using UnityEngine.UI;
 public class LevelCompleteUI : MonoBehaviour
 {
     public PipePuzzle puzzle;
+    public string homeSceneName = "StartScene";
+
+    [Header("Audio")]
+    [Tooltip("通关时播放的 BGM（默认 tongguanBGM）")]
+    public AudioClip completionBgmClip;
 
     private Canvas _canvas;
     private CanvasGroup _group;
     private Text _titleText;
+    private Text _subText;
     private Button _nextButton;
     private Button _replayButton;
     private Text _nextLabel;
     private Graphic _starGraphic;
     private Text _starCaption;
     private ParticleSystem _confetti;
+    private bool _isFinalLevelMode;
 
     void Awake()
     {
@@ -39,7 +46,19 @@ public class LevelCompleteUI : MonoBehaviour
         if (puzzle != null) puzzle.OnSolved -= HandleSolved;
     }
 
-    void HandleSolved() { Show(); }
+    void HandleSolved()
+    {
+        PlayCompletionBgm();
+        Show();
+    }
+
+    void PlayCompletionBgm()
+    {
+        if (completionBgmClip == null) return;
+        var player = BGMPlayer.Instance;
+        if (player == null) return;
+        player.SetClip(completionBgmClip, true);
+    }
 
     // ---------------- UI ----------------
 
@@ -108,6 +127,7 @@ public class LevelCompleteUI : MonoBehaviour
         sub.color = new Color(1, 1, 1, 0.85f);
         sub.alignment = TextAnchor.MiddleCenter;
         sub.raycastTarget = false;
+        _subText = sub;
 
         // 星星（通关挑战达成时点亮）
         var starGO = new GameObject("Star", typeof(RectTransform), typeof(CanvasRenderer));
@@ -310,8 +330,18 @@ public class LevelCompleteUI : MonoBehaviour
                 string nextId = PipePuzzle.GetNextLevelId(puzzle.loadedLevelId);
                 if (!string.IsNullOrEmpty(nextId) && LevelStore.Load(nextId) != null) hasNext = true;
             }
-            _nextButton.interactable = hasNext;
-            _nextLabel.text = hasNext ? "下一关" : "已是最后一关";
+            _isFinalLevelMode = !hasNext;
+            _nextButton.interactable = true;
+            _nextLabel.text = hasNext ? "下一关" : "回到首页";
+            if (_titleText != null)
+                _titleText.text = hasNext ? "通关！" : "全部通关！";
+            if (_subText != null)
+                _subText.text = hasNext ? "所有终点已通水" : "已通关所有关卡，解锁关卡编辑器，可以在首页进入";
+            if (_replayButton != null)
+                _replayButton.gameObject.SetActive(hasNext);
+            var nextRt = _nextButton != null ? _nextButton.GetComponent<RectTransform>() : null;
+            if (nextRt != null)
+                nextRt.anchoredPosition = hasNext ? new Vector2(-160, 80) : new Vector2(0, 80);
         }
 
         _group.alpha = 0f;
@@ -363,16 +393,37 @@ public class LevelCompleteUI : MonoBehaviour
 
     void OnNextClicked()
     {
+        BGMPlayer.PlayDefaultButtonClick();
         if (puzzle == null) return;
         Hide();
+        if (_isFinalLevelMode)
+        {
+            if (SceneTransitioner.Instance != null)
+                SceneTransitioner.Instance.LoadSceneWithFade(homeSceneName);
+            else
+                UnityEngine.SceneManagement.SceneManager.LoadScene(homeSceneName);
+            return;
+        }
         if (!puzzle.LoadNextLevel()) { /* 没有下一关，保持在当前界面 */ }
     }
 
     void OnReplayClicked()
     {
+        BGMPlayer.PlayDefaultButtonClick();
         if (puzzle == null) return;
         Hide();
         puzzle.RestartLevel();
     }
+
+#if UNITY_EDITOR
+    void OnValidate()
+    {
+        if (completionBgmClip == null)
+        {
+            var atPath = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/art/audio/BGM/tongguanBGM.mp3");
+            if (atPath != null) completionBgmClip = atPath;
+        }
+    }
+#endif
 
 }

@@ -18,9 +18,9 @@ EditorBuildSettings:
     path: Assets/Scenes/SampleScene.unity
     guid: 9fc0d4010bbf28b4594072e72b8655ab
   - enabled: 1
+    path: Assets/Scenes/PlayerEditorScene.unity
+    guid: fec370873f51bf7498d9f667fa2eacfc
+  - enabled: 1
     path: Assets/Scenes/CubeScene.unity
     guid: 04770c364b732c04ebb814158bc95a0c
-  - enabled: 1
-    path: Assets/Scenes/PipeEditorScene.unity
-    guid: f0118287cf6f58e4da00afe4cb6ce8c6
   m_configObjects: {}

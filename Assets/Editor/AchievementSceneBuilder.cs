@@ -39,6 +39,12 @@ public static class AchievementSceneBuilder
 
             new GameObject("EventSystem", typeof(EventSystem), typeof(StandaloneInputModule));
 
+            // 场景 BGM 插槽
+            var sceneBgmType = Type.GetType("SceneBGM, Assembly-CSharp");
+            if (sceneBgmType == null) return "ERROR: SceneBGM not found.";
+            var bgmGO = new GameObject("BGM");
+            bgmGO.AddComponent(sceneBgmType);
+
             var canvasGO = new GameObject("Canvas", typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
             var canvas = canvasGO.GetComponent<Canvas>();
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;

@@ -85,13 +85,24 @@ public static class StartSceneBuilder
             var controllerGO = new GameObject("MenuController");
             var controller = controllerGO.AddComponent(controllerType) as MonoBehaviour;
 
-            // 4 buttons, stacked vertically
+            // 主菜单按钮（纵向）
             float yStart = 120f;
             float yStep = 150f;
             var startBtn       = MakeButton(canvasGO.transform, "开始游戏",   new Vector2(0, yStart - 0 * yStep), new Color(0.25f, 0.55f, 0.35f), font, menuBtnType);
             var devBtn         = MakeButton(canvasGO.transform, "开发人员",   new Vector2(0, yStart - 1 * yStep), new Color(0.30f, 0.45f, 0.70f), font, menuBtnType);
             var achievementBtn = MakeButton(canvasGO.transform, "成就藏馆",   new Vector2(0, yStart - 2 * yStep), new Color(0.45f, 0.45f, 0.45f), font, menuBtnType);
             var exitBtn        = MakeButton(canvasGO.transform, "结束游戏",   new Vector2(0, yStart - 3 * yStep), new Color(0.70f, 0.25f, 0.25f), font, menuBtnType);
+
+            // 独立的玩家编辑器入口（右下角悬浮，不占用“开发人员”按钮）
+            var playerEditorBtn = MakeButton(canvasGO.transform, "玩家编辑器", Vector2.zero, new Color(0.25f, 0.45f, 0.78f), font, menuBtnType);
+            var peRt = playerEditorBtn.GetComponent<RectTransform>();
+            peRt.anchorMin = new Vector2(1f, 0f);
+            peRt.anchorMax = new Vector2(1f, 0f);
+            peRt.pivot = new Vector2(1f, 0f);
+            peRt.anchoredPosition = new Vector2(-36f, 28f);
+            peRt.sizeDelta = new Vector2(260f, 90f);
+            var peTxt = playerEditorBtn.GetComponentInChildren<Text>();
+            if (peTxt != null) peTxt.fontSize = 36;
 
             // Achievement button gets extra AchievementButton component; default inactive (gray)
             var achComp = achievementBtn.AddComponent(achievementBtnType) as MonoBehaviour;
@@ -120,6 +131,7 @@ public static class StartSceneBuilder
             var levelSelectScene = "Assets/Scenes/LevelSelectScene.unity";
             var achievementScene = "Assets/Scenes/AchievementScene.unity";
             var sampleScene = "Assets/Scenes/SampleScene.unity";
+            var playerEditorScene = "Assets/Scenes/PlayerEditorScene.unity";
             var scenes = new List<EditorBuildSettingsScene>();
             scenes.Add(new EditorBuildSettingsScene(scenePath, true));
             if (File.Exists(levelSelectScene))
@@ -128,6 +140,8 @@ public static class StartSceneBuilder
                 scenes.Add(new EditorBuildSettingsScene(achievementScene, true));
             if (File.Exists(sampleScene))
                 scenes.Add(new EditorBuildSettingsScene(sampleScene, true));
+            if (File.Exists(playerEditorScene))
+                scenes.Add(new EditorBuildSettingsScene(playerEditorScene, true));
             EditorBuildSettings.scenes = scenes.ToArray();
 
             AssetDatabase.SaveAssets();

@@ -1,6 +1,8 @@
+using UnityEngine;
+using UnityEngine.SceneManagement;
 using System.Collections;
 using System.Collections.Generic;
-using UnityEngine;
+using System.Linq;
 
 /// <summary>
 /// 管道谜题系统：按照 CellConfig 列表在魔方各 cubie 的某一面上放置 PipeCell。
@@ -28,6 +30,12 @@ public class PipePuzzle : MonoBehaviour
     [Tooltip("关卡的管道格列表。若为空且 buildSampleIfEmpty 打开，则构建示例关卡")]
     public List<CellConfig> cells = new List<CellConfig>();
     public bool buildSampleIfEmpty = true;
+
+    [Header("Audio")]
+    [Tooltip("CubeScene 的 BGM 插槽；进入关卡场景时会切换到这首。")]
+    public AudioClip levelBgmClip;
+    [Tooltip("进入场景时是否自动切换到上面的 BGM")]
+    public bool autoSwitchLevelBgmOnStart = true;
 
     [Header("Visual")]
     [Range(0.02f, 0.3f)] public float pipeRadius = 0.10f;
@@ -141,6 +149,7 @@ public class PipePuzzle : MonoBehaviour
     {
         // 等一帧，确保 RubikCube.Start 先跑完（或者它已通过 OnBuilt 通知了我们）
         yield return null;
+        ApplyLevelBgmIfNeeded();
         if (!_built && cube != null && cube.IsBuilt) HandleCubeBuilt();
     }
 
@@ -170,6 +179,19 @@ public class PipePuzzle : MonoBehaviour
         if ((cells == null || cells.Count == 0) && buildSampleIfEmpty) BuildSampleLevel();
         BuildVisuals();
         Recompute();
+    }
+
+    void ApplyLevelBgmIfNeeded()
+    {
+        if (!autoSwitchLevelBgmOnStart || levelBgmClip == null) return;
+
+        var player = BGMPlayer.Instance;
+        if (player == null) return;
+
+        var src = player.GetComponent<AudioSource>();
+        bool playing = src != null && src.isPlaying;
+        if (player.bgmClip != levelBgmClip || !playing)
+            player.SetClip(levelBgmClip, true);
     }
 
     // -----------------------------------------------------------------------
@@ -355,41 +377,36 @@ public class PipePuzzle : MonoBehaviour
 
     void PrepareMaterials()
     {
-        Shader sh = Shader.Find("Standard");
-        if (sh == null) sh = Shader.Find("Universal Render Pipeline/Lit");
-        if (sh == null) sh = Shader.Find("Unlit/Color");
-        _matEmpty  = new Material(sh) { name = "PipeEmpty",  color = emptyColor };
-        _matWater  = new Material(sh) { name = "PipeWater",  color = waterColor };
-        _matStart  = new Material(sh) { name = "PipeStart",  color = startColor };
-        _matEnd    = new Material(sh) { name = "PipeEnd",    color = endColor   };
-        _matPortal = new Material(sh) { name = "PipePortal", color = portalColor };
-        // 管道材质：光滑半金属质感
-        foreach (var m in new[] { _matEmpty, _matWater, _matStart, _matEnd, _matPortal })
+        Shader sh = RuntimeShaderResolver.ResolveColorShader();
+        _matEmpty  = new Material(sh) { name = "PipeEmpty"  };
+        _matWater  = new Material(sh) { name = "PipeWater"  };
+        _matStart  = new Material(sh) { name = "PipeStart"  };
+        _matEnd    = new Material(sh) { name = "PipeEnd"    };
+        _matPortal = new Material(sh) { name = "PipePortal" };
+
+        ApplyPipeMat(_matEmpty,  emptyColor,  0.65f, 0.15f, Color.black);
+        ApplyPipeMat(_matWater,  waterColor,  0.65f, 0.15f, waterColor * 0.30f);
+        ApplyPipeMat(_matStart,  startColor,  0.65f, 0.15f, startColor * 0.20f);
+        ApplyPipeMat(_matEnd,    endColor,    0.65f, 0.15f, endColor * 0.20f);
+        ApplyPipeMat(_matPortal, portalColor, 0.65f, 0.15f, portalColor * 0.35f);
+    }
+
+    static void ApplyPipeMat(Material m, Color baseColor, float smoothness, float metallic, Color emission)
+    {
+        if (m == null) return;
+
+        if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", baseColor);
+        if (m.HasProperty("_Color")) m.SetColor("_Color", baseColor);
+
+        if (m.HasProperty("_Smoothness")) m.SetFloat("_Smoothness", smoothness);
+        if (m.HasProperty("_Glossiness")) m.SetFloat("_Glossiness", smoothness);
+
+        if (m.HasProperty("_Metallic")) m.SetFloat("_Metallic", metallic);
+
+        if (m.HasProperty("_EmissionColor"))
         {
-            if (m.HasProperty("_Glossiness")) m.SetFloat("_Glossiness", 0.65f);
-            if (m.HasProperty("_Smoothness")) m.SetFloat("_Smoothness", 0.65f);
-            if (m.HasProperty("_Metallic")) m.SetFloat("_Metallic", 0.15f);
-        }
-        // 水管发光
-        if (_matWater.HasProperty("_EmissionColor"))
-        {
-            _matWater.EnableKeyword("_EMISSION");
-            _matWater.SetColor("_EmissionColor", waterColor * 0.3f);
-        }
-        if (_matStart.HasProperty("_EmissionColor"))
-        {
-            _matStart.EnableKeyword("_EMISSION");
-            _matStart.SetColor("_EmissionColor", startColor * 0.2f);
-        }
-        if (_matEnd.HasProperty("_EmissionColor"))
-        {
-            _matEnd.EnableKeyword("_EMISSION");
-            _matEnd.SetColor("_EmissionColor", endColor * 0.2f);
-        }
-        if (_matPortal.HasProperty("_EmissionColor"))
-        {
-            _matPortal.EnableKeyword("_EMISSION");
-            _matPortal.SetColor("_EmissionColor", portalColor * 0.35f);
+            if (emission.maxColorComponent > 0.0001f) m.EnableKeyword("_EMISSION");
+            m.SetColor("_EmissionColor", emission);
         }
     }
 

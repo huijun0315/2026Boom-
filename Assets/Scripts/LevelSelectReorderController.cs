@@ -39,9 +39,9 @@ public class LevelSelectReorderController : MonoBehaviour
 
         _canvas = tileRoot != null ? tileRoot.GetComponentInParent<Canvas>() : null;
 
-        if (editModeButton != null) editModeButton.onClick.AddListener(ToggleEditMode);
-        if (saveOrderButton != null) saveOrderButton.onClick.AddListener(SaveOrder);
-        if (cancelButton != null) cancelButton.onClick.AddListener(CancelEdit);
+        if (editModeButton != null) editModeButton.onClick.AddListener(() => { BGMPlayer.PlayDefaultButtonClick(); ToggleEditMode(); });
+        if (saveOrderButton != null) saveOrderButton.onClick.AddListener(() => { BGMPlayer.PlayDefaultButtonClick(); SaveOrder(); });
+        if (cancelButton != null) cancelButton.onClick.AddListener(() => { BGMPlayer.PlayDefaultButtonClick(); CancelEdit(); });
 
         RefreshTilesAndSlots();
         ApplyPersistedOrderOnLoad();
@@ -242,7 +242,7 @@ public class LevelSelectReorderController : MonoBehaviour
 
     void ApplyPersistedOrderOnLoad()
     {
-        var desiredIds = LoadPersistedOrderIds();
+        var desiredIds = LoadDisplayOrderIds();
         if (desiredIds.Count == 0 || _workingOrder.Count == 0) return;
 
         var map = new Dictionary<string, LevelTileDraggable>();
@@ -273,6 +273,21 @@ public class LevelSelectReorderController : MonoBehaviour
         _dirty = false;
     }
 
+    List<string> LoadDisplayOrderIds()
+    {
+        var ids = new List<string>();
+
+        var fromStore = LevelStore.LoadOrderedIds();
+        for (int i = 0; i < fromStore.Length; i++)
+            if (!string.IsNullOrEmpty(fromStore[i]) && !ids.Contains(fromStore[i]))
+                ids.Add(fromStore[i]);
+
+        if (ids.Count == 0)
+            ids = LoadPersistedOrderIds();
+
+        return ids;
+    }
+
     List<string> LoadPersistedOrderIds()
     {
         var ids = new List<string>();
@@ -294,14 +309,6 @@ public class LevelSelectReorderController : MonoBehaviour
                 }
             }
             catch { }
-        }
-
-        if (ids.Count == 0)
-        {
-            var fromStore = LevelStore.LoadOrderedIds();
-            for (int i = 0; i < fromStore.Length; i++)
-                if (!string.IsNullOrEmpty(fromStore[i]) && !ids.Contains(fromStore[i]))
-                    ids.Add(fromStore[i]);
         }
 
         return ids;
@@ -402,7 +409,7 @@ public class LevelSelectReorderController : MonoBehaviour
             var numberTf = tile.transform.Find("Number");
             var numberText = numberTf != null ? numberTf.GetComponent<Text>() : null;
             if (numberText != null)
-                numberText.text = lb.isUnlocked ? lb.levelIndex.ToString() : "?";
+                numberText.text = lb.levelIndex.ToString();
         }
     }
 }

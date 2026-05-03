@@ -105,7 +105,7 @@ public class AchievementPageController : MonoBehaviour
                 if (iconButtons[i] != null)
                 {
                     iconButtons[i].onClick.RemoveAllListeners();
-                    iconButtons[i].onClick.AddListener(() => Select(idx));
+                    iconButtons[i].onClick.AddListener(() => { BGMPlayer.PlayDefaultButtonClick(); Select(idx); });
                 }
             }
         }
@@ -113,7 +113,7 @@ public class AchievementPageController : MonoBehaviour
         if (switchButton != null)
         {
             switchButton.onClick.RemoveAllListeners();
-            switchButton.onClick.AddListener(SwitchNext);
+            switchButton.onClick.AddListener(() => { BGMPlayer.PlayDefaultButtonClick(); SwitchNext(); });
         }
     }
 
@@ -285,6 +285,8 @@ public class AchievementPageController : MonoBehaviour
 
     public void Back()
     {
+        BGMPlayer.PlayDefaultButtonClick();
+
         string targetScene = PlayerPrefs.GetString(ReturnScenePrefKey, backSceneName);
         bool restorePausePanel = PlayerPrefs.GetInt(ReturnPausePrefKey, 0) == 1;
         if (!restorePausePanel)

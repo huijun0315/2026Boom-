@@ -223,12 +223,16 @@ MonoBehaviour:
   cube: {fileID: 283644387}
   cells: []
   buildSampleIfEmpty: 1
+  levelBgmClip: {fileID: 8300000, guid: 65f0ee53f7884004f8caec16d361cf8f, type: 3}
+  autoSwitchLevelBgmOnStart: 1
   pipeRadius: 0.1
   pipeOffset: 0.015
   emptyColor: {r: 0.45, g: 0.45, b: 0.5, a: 1}
   waterColor: {r: 0.2, g: 0.7, b: 1, a: 1}
   startColor: {r: 0.2, g: 1, b: 0.35, a: 1}
   endColor: {r: 1, g: 0.35, b: 0.35, a: 1}
+  portalColor: {r: 0.85, g: 0.45, b: 1, a: 1}
+  pipeLabelColor: {r: 0.08, g: 0.1, b: 0.14, a: 1}
   loadedLevelId: 
   loadedDisplayName: 
 --- !u!114 &283644387
@@ -596,6 +600,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   puzzle: {fileID: 0}
+  homeSceneName: StartScene
 --- !u!4 &1415050884
 Transform:
   m_ObjectHideFlags: 0

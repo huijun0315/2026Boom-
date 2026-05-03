@@ -269,11 +269,13 @@ public class ChallengeHUD : MonoBehaviour
 
     void OnResetOrientationClicked()
     {
+        BGMPlayer.PlayDefaultButtonClick();
         if (cube != null) cube.ResetOrientation();
     }
 
     void OnResetClicked()
     {
+        BGMPlayer.PlayDefaultButtonClick();
         if (puzzle == null) return;
         puzzle.RestartLevel();
         Refresh();
@@ -281,19 +283,24 @@ public class ChallengeHUD : MonoBehaviour
 
     void OnUndoClicked()
     {
+        BGMPlayer.PlayDefaultButtonClick();
         if (puzzle == null) return;
         puzzle.UndoLastMove(); // 完成后 OnMoveCountChanged 会触发 Refresh()
     }
 
     void OnPauseClicked()
     {
+        BGMPlayer.PlayDefaultButtonClick();
         if (_pausePanel == null) return;
         _pausePanel.SetActive(true);
+        if (BGMPlayer.Instance != null) BGMPlayer.Instance.SetPauseAudioState(true);
         Time.timeScale = 0f;
     }
 
     void OnPauseBackClicked()
     {
+        BGMPlayer.PlayDefaultButtonClick();
+        if (BGMPlayer.Instance != null) BGMPlayer.Instance.SetPauseAudioState(false);
         Time.timeScale = 1f;
         if (SceneTransitioner.Instance != null)
             SceneTransitioner.Instance.LoadSceneWithFade(_levelSelectSceneName);
@@ -303,7 +310,9 @@ public class ChallengeHUD : MonoBehaviour
 
     void OnPauseAchievementClicked()
     {
+        BGMPlayer.PlayDefaultButtonClick();
         AchievementPageController.SetReturnTarget(SceneManager.GetActiveScene().name, true);
+        if (BGMPlayer.Instance != null) BGMPlayer.Instance.SetPauseAudioState(false);
         Time.timeScale = 1f;
         if (SceneTransitioner.Instance != null)
             SceneTransitioner.Instance.LoadSceneWithFade(_achievementSceneName);
@@ -313,6 +322,8 @@ public class ChallengeHUD : MonoBehaviour
 
     void OnPauseResumeClicked()
     {
+        BGMPlayer.PlayDefaultButtonClick();
+        if (BGMPlayer.Instance != null) BGMPlayer.Instance.SetPauseAudioState(false);
         Time.timeScale = 1f;
         if (_pausePanel != null) _pausePanel.SetActive(false);
     }

@@ -13,12 +13,21 @@ public class SceneBGM : MonoBehaviour
     [Tooltip("是否在 Start 时自动切换并播放")]
     public bool playOnStart = true;
 
+    [Header("Auto Create")]
+    [Tooltip("若场景里没有 BGMPlayer，则自动创建一个")]
+    public bool autoCreatePlayerIfMissing = true;
+
     void Start()
     {
         if (!playOnStart || bgmClip == null) return;
 
-        // 使用全局单例；若不存在会懒加载
         var player = BGMPlayer.Instance;
+        if (player == null && autoCreatePlayerIfMissing)
+        {
+            var go = new GameObject("BGM", typeof(AudioSource));
+            player = go.AddComponent<BGMPlayer>();
+        }
+
         if (player == null) return;
 
         // 只有当前 BGM 不是这首，或已停止时才切换；避免重复 restart
