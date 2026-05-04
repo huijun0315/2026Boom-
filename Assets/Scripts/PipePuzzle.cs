@@ -52,6 +52,7 @@ public class PipePuzzle : MonoBehaviour
     public Color pipeLabelColor = new Color(0.08f, 0.10f, 0.14f);
 
     private Material _matEmpty, _matWater, _matStart, _matEnd, _matPortal;
+    private Material _skinPipeBaseMaterial;
     private readonly List<PipeCell> _pipeCells = new List<PipeCell>();
     private bool _built;
 
@@ -95,6 +96,26 @@ public class PipePuzzle : MonoBehaviour
             cube.OnBuilt        += HandleCubeBuilt;
             cube.OnLayerSnapped += OnLayerRotated;
             cube.OnLayerUndone  += OnLayerUndoneHandler;
+        }
+    }
+
+    public void ApplySkin(SkinConfig skin)
+    {
+        _skinPipeBaseMaterial = (skin != null) ? skin.pipeBaseMaterial : null;
+
+        if (!_built) return;
+        PrepareMaterials();
+
+        for (int i = 0; i < _pipeCells.Count; i++)
+        {
+            var pc = _pipeCells[i];
+            if (pc == null) continue;
+            pc.matEmpty = _matEmpty;
+            pc.matWater = _matWater;
+            pc.matStart = _matStart;
+            pc.matEnd = _matEnd;
+            pc.matPortal = _matPortal;
+            pc.ApplyWaterVisual();
         }
     }
 
@@ -377,12 +398,22 @@ public class PipePuzzle : MonoBehaviour
 
     void PrepareMaterials()
     {
+        Material baseMat = _skinPipeBaseMaterial;
         Shader sh = RuntimeShaderResolver.ResolveColorShader();
         _matEmpty  = new Material(sh) { name = "PipeEmpty"  };
         _matWater  = new Material(sh) { name = "PipeWater"  };
         _matStart  = new Material(sh) { name = "PipeStart"  };
         _matEnd    = new Material(sh) { name = "PipeEnd"    };
         _matPortal = new Material(sh) { name = "PipePortal" };
+
+        if (baseMat != null)
+        {
+            _matEmpty = new Material(baseMat) { name = "PipeEmpty" };
+            _matWater = new Material(baseMat) { name = "PipeWater" };
+            _matStart = new Material(baseMat) { name = "PipeStart" };
+            _matEnd = new Material(baseMat) { name = "PipeEnd" };
+            _matPortal = new Material(baseMat) { name = "PipePortal" };
+        }
 
         ApplyPipeMat(_matEmpty,  emptyColor,  0.65f, 0.15f, Color.black);
         ApplyPipeMat(_matWater,  waterColor,  0.65f, 0.15f, waterColor * 0.30f);

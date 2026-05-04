@@ -1,0 +1,20 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fad2f40c3efd28c4793dbbac2a99ed6c, type: 3}
+  m_Name: cfg1
+  m_EditorClassIdentifier: 
+  skinId: skin_1
+  displayName: "\u9ED8\u8BA4\u76AE\u80A4"
+  cubeBodyMaterial: {fileID: 2100000, guid: 752283e0c35105149a4dff1f3dd3f94c, type: 2}
+  cubeStickerMaterial: {fileID: 2100000, guid: 752283e0c35105149a4dff1f3dd3f94c, type: 2}
+  cubeRotateSfx: {fileID: 0}
+  pipeBaseMaterial: {fileID: 0}

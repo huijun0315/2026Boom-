@@ -80,6 +80,10 @@ public class AchievementPageController : MonoBehaviour
 
     void Start()
     {
+        var skinMgr = SkinManager.Instance;
+        if (skinMgr != null)
+            skinMgr.selectedSlotKey = keySelectedSkin;
+
         _totalStars = CountTotalStars();
         _selectedSkin = Mathf.Clamp(PlayerPrefs.GetInt(keySelectedSkin, 0), 0, skinCount - 1);
         WireButtons();
@@ -93,6 +97,9 @@ public class AchievementPageController : MonoBehaviour
             PlayerPrefs.Save();
         }
         Select(_selectedSkin);
+
+        if (skinMgr != null)
+            skinMgr.ApplyCurrentSkinToScene();
     }
 
     void WireButtons()
@@ -280,6 +287,14 @@ public class AchievementPageController : MonoBehaviour
         _selectedSkin = _current;
         PlayerPrefs.SetInt(keySelectedSkin, _selectedSkin);
         PlayerPrefs.Save();
+
+        var skinMgr = SkinManager.Instance;
+        if (skinMgr != null)
+        {
+            skinMgr.selectedSlotKey = keySelectedSkin;
+            skinMgr.ApplyByMuseumOption(_selectedSkin);
+        }
+
         Select(_selectedSkin);
     }
 

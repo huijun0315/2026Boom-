@@ -57,8 +57,10 @@ public class RubikCube : MonoBehaviour
     public float layerMaxAnglePerFrame = 25f;
     [Tooltip("层旋转最小有效半径（世界单位）：鼠标投影距轴小于此值时不更新（抖动放大区）")]
     public float layerMinRadius = 0.55f;
-    [Tooltip("松手后吸附到 90 度的动画时长")]
+    [Tooltip("撤销一次层旋转时的动画时长")]
     public float snapDuration = 0.18f;
+    [Tooltip("触发一次层旋转后，旋转 90° 所需时间（秒）")]
+    public float layerTurn90Duration = 0.18f;
     [Tooltip("是否允许用户拖拽旋转某一层（关卡编辑器中关闭）")]
     public bool allowLayerRotation = true;
     [Tooltip("是否允许用户拖拽整体旋转")]
@@ -79,7 +81,7 @@ public class RubikCube : MonoBehaviour
     private readonly List<Transform> _cubies = new List<Transform>();
     private Transform _layerHolder;
 
-    enum DragMode { None, Whole, PendingLayer, Layer }
+    enum DragMode { None, Whole, PendingLayer }
     private DragMode _mode = DragMode.None;
     private Vector3 _dragStart;
     private Vector3 _lastMouse;
@@ -98,11 +100,56 @@ public class RubikCube : MonoBehaviour
     private readonly List<Transform> _layerCubies = new List<Transform>();
     private bool _snapping;
 
+    private Material _skinBodyMaterial;
+    private Material _skinStickerMaterial;
+
     void Start()
     {
         if (cam == null) cam = Camera.main;
         QualitySettings.antiAliasing = 8;
         if (buildOnStart) Build();
+    }
+
+    public void ApplySkin(SkinConfig skin)
+    {
+        _skinBodyMaterial = skin != null ? skin.cubeBodyMaterial : null;
+        _skinStickerMaterial = skin != null ? skin.cubeStickerMaterial : null;
+
+        if (_cubies != null && _cubies.Count > 0)
+            ApplySkinToBuiltCube();
+    }
+
+    void ApplySkinToBuiltCube()
+    {
+        for (int i = 0; i < _cubies.Count; i++)
+        {
+            var c = _cubies[i];
+            if (c == null) continue;
+
+            var renderers = c.GetComponentsInChildren<Renderer>(true);
+            for (int r = 0; r < renderers.Length; r++)
+            {
+                var rd = renderers[r];
+                if (rd == null) continue;
+
+                if (IsStickerRenderer(rd))
+                {
+                    if (_skinStickerMaterial != null)
+                        rd.sharedMaterial = _skinStickerMaterial;
+                }
+                else
+                {
+                    if (_skinBodyMaterial != null)
+                        rd.sharedMaterial = _skinBodyMaterial;
+                }
+            }
+        }
+    }
+
+    static bool IsStickerRenderer(Renderer renderer)
+    {
+        if (renderer == null) return false;
+        return renderer.name.IndexOf("Sticker", StringComparison.OrdinalIgnoreCase) >= 0;
     }
 
     public void Build()
@@ -303,7 +350,7 @@ public class RubikCube : MonoBehaviour
             if (cam == null) cam = Camera.main;
             var ray = cam.ScreenPointToRay(Input.mousePosition);
             RaycastHit hit;
-            if (allowLayerRotation && Physics.Raycast(ray, out hit, 1000f) && IsOwnCubie(hit.collider.transform))
+            if (allowLayerRotation && TryPickLayerHit(ray, out hit))
             {
                 _hitCubie = hit.collider.transform;
                 _hitNormalWorld = hit.normal.normalized;
@@ -340,27 +387,17 @@ public class RubikCube : MonoBehaviour
                     bool force = mag >= layerDragMaxWait;
                     if (DecideLayer(total, force))
                     {
-                        _mode = DragMode.Layer;
-                        _dragStart = m; // 以锁轴时的位置为 0° 原点，避免瞬间跳一个角
+                        _mode = DragMode.None;
+                        StartCoroutine(RotateLayerBySteps(1));
                     }
                     // 未锁定：继续停在 PendingLayer 等下一帧
                 }
-            }
-            else if (_mode == DragMode.Layer)
-            {
-                float target = ComputeLayerAngle(m);
-                float d = target - _layerAngle;
-                _layerAngle = target;
-                _layerHolder.Rotate(_layerAxisLocal, d, Space.Self);
             }
         }
         else if (Input.GetMouseButtonUp(0))
         {
             bool wasWhole = (_mode == DragMode.Whole);
-            if (_mode == DragMode.Layer)
-                StartCoroutine(SnapLayer());
-            else
-                _mode = DragMode.None;
+            _mode = DragMode.None;
             ResetWholeAxisLock();
             if (wasWhole)
             {
@@ -596,6 +633,40 @@ public class RubikCube : MonoBehaviour
         return false;
     }
 
+    bool TryPickLayerHit(Ray ray, out RaycastHit bestHit)
+    {
+        bestHit = default;
+        var hits = Physics.RaycastAll(ray, 1000f, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore);
+        if (hits == null || hits.Length == 0) return false;
+
+        float bestDistance = float.PositiveInfinity;
+        bool found = false;
+        Vector3 invRay = -ray.direction.normalized;
+
+        for (int i = 0; i < hits.Length; i++)
+        {
+            var h = hits[i];
+            if (h.collider == null) continue;
+            if (!IsOwnCubie(h.collider.transform)) continue;
+
+            Vector3 fromCenter = h.point - transform.position;
+            if (fromCenter.sqrMagnitude > 1e-6f)
+            {
+                float frontness = Vector3.Dot(fromCenter.normalized, invRay);
+                if (frontness < -0.1f) continue;
+            }
+
+            if (h.distance < bestDistance)
+            {
+                bestDistance = h.distance;
+                bestHit = h;
+                found = true;
+            }
+        }
+
+        return found;
+    }
+
     bool DecideLayer(Vector2 totalDragScreen, bool force)
     {
         // 将面法线转换到 cube 本地空间并吸附到标准轴
@@ -755,17 +826,17 @@ public class RubikCube : MonoBehaviour
         return true;
     }
 
-    IEnumerator SnapLayer()
+    IEnumerator RotateLayerBySteps(int steps)
     {
         _snapping = true;
-        int steps = Mathf.RoundToInt(_layerAngle / 90f);
         float target = steps * 90f;
-        float start = _layerAngle;
+        float start = 0f;
 
         Quaternion startQ = Quaternion.AngleAxis(start, _layerAxisLocal);
         Quaternion endQ   = Quaternion.AngleAxis(target, _layerAxisLocal);
         float t = 0f;
-        float dur = Mathf.Max(0.01f, snapDuration);
+        float quarterTurns = Mathf.Max(1f, Mathf.Abs(target - start) / 90f);
+        float dur = Mathf.Max(0.01f, layerTurn90Duration * quarterTurns);
         while (t < dur)
         {
             t += Time.deltaTime;
@@ -789,7 +860,6 @@ public class RubikCube : MonoBehaviour
         }
         _layerCubies.Clear();
         _layerHolder.localRotation = Quaternion.identity;
-        _layerAngle = 0f;
         _mode = DragMode.None;
         _snapping = false;
 
