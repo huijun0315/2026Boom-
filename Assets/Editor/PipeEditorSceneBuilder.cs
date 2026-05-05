@@ -59,6 +59,9 @@ public static class PipeEditorSceneBuilder
             var cubeGO = new GameObject("RubikCube");
             var rc = cubeGO.AddComponent(cubeType) as MonoBehaviour;
             SetField(cubeType, rc, "cam", cam);
+            SetField(cubeType, rc, "useModelPrefab", true);
+            SetField(cubeType, rc, "cubeModelPrefab", AssetDatabase.LoadAssetAtPath<GameObject>("Assets/art/3D/27mofang.fbx"));
+            SetField(cubeType, rc, "autoAddModelColliders", true);
             SetField(cubeType, rc, "allowLayerRotation", false);
             SetField(cubeType, rc, "allowWholeRotation", true);
 

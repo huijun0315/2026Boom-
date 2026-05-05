@@ -732,6 +732,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   buildOnStart: 1
   spacing: 1.02
+  useModelPrefab: 1
+  cubeModelPrefab: {fileID: 100100000, guid: 1a9cd38cd563fdc4db25fbc4e1f7d33a, type: 3}
+  autoAddModelColliders: 1
   colorRight: {r: 0.96, g: 0.96, b: 0.96, a: 1}
   colorLeft: {r: 0.96, g: 0.96, b: 0.96, a: 1}
   colorUp: {r: 0.96, g: 0.96, b: 0.96, a: 1}

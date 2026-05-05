@@ -3,19 +3,32 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.EventSystems;
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
 
 /// <summary>
-/// 3x3x3 魔方。Start 时程序化构建 27 个小块。
+/// 3x3x3 魔方。Start 时仅通过 27 块模型预制体构建。
 /// 鼠标左键拖拽：
 ///   - 拖空白（未命中小块）：绕屏幕轴旋转整体
 ///   - 拖某个小块：根据拖拽方向决定旋转轴，旋转该小块所在的那一层，松开后自动吸附到 90 度
 /// </summary>
 public class RubikCube : MonoBehaviour
 {
+#if UNITY_EDITOR
+    const string DefaultCubeModelPath = "Assets/art/3D/27mofang.fbx";
+#endif
+
     [Header("Build")]
     public bool buildOnStart = true;
     [Tooltip("小块之间的间距（==1 则紧贴，1.02 有轻微黑缝）")]
     public float spacing = 1.02f;
+    [Tooltip("使用模型预制体构建魔方（推荐：27mofang）")]
+    public bool useModelPrefab = true;
+    [Tooltip("魔方模型预制体，需包含 27 个小块网格")]
+    public GameObject cubeModelPrefab;
+    [Tooltip("模型构建后自动给每个小块补碰撞体（用于点选）")]
+    public bool autoAddModelColliders = true;
 
     [Header("Colors (Rubik 标准)")]
     public Color colorRight = new Color(0.96f, 0.96f, 0.96f); // +X white
@@ -110,6 +123,14 @@ public class RubikCube : MonoBehaviour
         if (buildOnStart) Build();
     }
 
+#if UNITY_EDITOR
+    void OnValidate()
+    {
+        if (cubeModelPrefab == null)
+            cubeModelPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(DefaultCubeModelPath);
+    }
+#endif
+
     public void ApplySkin(SkinConfig skin)
     {
         _skinBodyMaterial = skin != null ? skin.cubeBodyMaterial : null;
@@ -163,15 +184,30 @@ public class RubikCube : MonoBehaviour
         _cubies.Clear();
         _history.Clear();
 
-        for (int x = -1; x <= 1; x++)
-            for (int y = -1; y <= 1; y++)
-                for (int z = -1; z <= 1; z++)
-                {
-                    var cubie = BuildCubie(x, y, z);
-                    cubie.SetParent(transform, false);
-                    cubie.localPosition = new Vector3(x, y, z) * spacing;
-                    _cubies.Add(cubie);
-                }
+        bool builtFromModel = false;
+        int modelRendererRoots = 0;
+        string modelBuildInfo = "";
+        string modelAssetInfo = "";
+        var modelPrefab = ResolveModelPrefab();
+
+        if (modelPrefab != null)
+            modelAssetInfo = InspectModelAsset(modelPrefab);
+
+        if (modelPrefab != null)
+            builtFromModel = BuildFromModelPrefab(modelPrefab, out modelRendererRoots, out modelBuildInfo);
+
+        Debug.Log("[RubikCube] Build diagnostics: useModelPrefab=" + useModelPrefab
+            + ", cubeModelPrefab=" + (modelPrefab != null ? modelPrefab.name : "null")
+            + ", assetInfo=" + modelAssetInfo
+            + ", rendererRoots=" + modelRendererRoots
+            + ", builtFromModel=" + builtFromModel
+            + ", cubies=" + _cubies.Count
+            + ", modelInfo=" + modelBuildInfo, this);
+
+        if (!builtFromModel)
+        {
+            throw new InvalidOperationException("RubikCube model build failed. " + modelBuildInfo + " Check cubeModelPrefab (27mofang) import hierarchy and renderer structure.");
+        }
 
         // (Re)create layer holder
         if (_layerHolder != null)
@@ -184,141 +220,319 @@ public class RubikCube : MonoBehaviour
         holderGO.transform.localRotation = Quaternion.identity;
         _layerHolder = holderGO.transform;
 
+        if ((_skinBodyMaterial != null || _skinStickerMaterial != null) && _cubies.Count > 0)
+            ApplySkinToBuiltCube();
+
         if (OnBuilt != null) OnBuilt();
     }
 
-    Transform BuildCubie(int x, int y, int z)
+    GameObject ResolveModelPrefab()
     {
-        var body = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        body.name = "Cubie_" + x + "_" + y + "_" + z;
-        body.transform.localScale = Vector3.one;
-        var br = body.GetComponent<Renderer>();
-        br.sharedMaterial = MakeMat(colorBody, "body");
-
-        if (x ==  1) AddSticker(body.transform, Vector3.right,   colorRight);
-        if (x == -1) AddSticker(body.transform, Vector3.left,    colorLeft);
-        if (y ==  1) AddSticker(body.transform, Vector3.up,      colorUp);
-        if (y == -1) AddSticker(body.transform, Vector3.down,    colorDown);
-        if (z ==  1) AddSticker(body.transform, Vector3.forward, colorFront);
-        if (z == -1) AddSticker(body.transform, Vector3.back,    colorBack);
-
-        return body.transform;
+        if (cubeModelPrefab != null) return cubeModelPrefab;
+#if UNITY_EDITOR
+        cubeModelPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(DefaultCubeModelPath);
+#endif
+        return cubeModelPrefab;
     }
 
-    void AddSticker(Transform parent, Vector3 normal, Color c)
+    bool BuildFromModelPrefab(GameObject modelPrefab, out int rendererRootCount, out string modelInfo)
     {
-        // 圆角贴纸：用高段数圆柱模拟圆角矩形
-        var sticker = new GameObject("Sticker");
-        sticker.transform.SetParent(parent, false);
-        sticker.transform.localPosition = normal * 0.502f;
-        sticker.transform.localRotation = Quaternion.LookRotation(-normal);
+        rendererRootCount = 0;
+        modelInfo = "";
+        GameObject instance = null;
+        UnityEngine.Object cloned = null;
 
-        float size = 0.86f;
-        float radius = 0.06f;
-        float thick = 0.012f;
-
-        // 中心平面
-        var plane = GameObject.CreatePrimitive(PrimitiveType.Quad);
-        plane.name = "StickerCenter";
-        plane.transform.SetParent(sticker.transform, false);
-        plane.transform.localScale = new Vector3(size - radius * 2, size - radius * 2, 1f);
-        var pr = plane.GetComponent<Renderer>();
-        pr.sharedMaterial = MakeStickerMat(c);
-        var pc = plane.GetComponent<Collider>();
-        if (pc != null) { if (Application.isPlaying) Destroy(pc); else DestroyImmediate(pc); }
-
-        // 4 个边条
-        float edgeW = size - radius * 2;
-        float edgeH = radius * 2;
-        AddStickerEdge(sticker.transform, new Vector3(0, (size - radius) / 2f, 0), edgeW, edgeH, c);   // top
-        AddStickerEdge(sticker.transform, new Vector3(0, -(size - radius) / 2f, 0), edgeW, edgeH, c);   // bottom
-        AddStickerEdge(sticker.transform, new Vector3((size - radius) / 2f, 0, 0), edgeH, edgeW, c);    // right
-        AddStickerEdge(sticker.transform, new Vector3(-(size - radius) / 2f, 0, 0), edgeH, edgeW, c);   // left
-
-        // 4 个圆角
-        AddStickerCorner(sticker.transform, new Vector3((size - radius) / 2f, (size - radius) / 2f, 0), radius, c, 0);
-        AddStickerCorner(sticker.transform, new Vector3(-(size - radius) / 2f, (size - radius) / 2f, 0), radius, c, 1);
-        AddStickerCorner(sticker.transform, new Vector3(-(size - radius) / 2f, -(size - radius) / 2f, 0), radius, c, 2);
-        AddStickerCorner(sticker.transform, new Vector3((size - radius) / 2f, -(size - radius) / 2f, 0), radius, c, 3);
-    }
-
-    void AddStickerEdge(Transform parent, Vector3 pos, float w, float h, Color c)
-    {
-        var q = GameObject.CreatePrimitive(PrimitiveType.Quad);
-        q.transform.SetParent(parent, false);
-        q.transform.localPosition = pos;
-        q.transform.localScale = new Vector3(w, h, 1f);
-        var r = q.GetComponent<Renderer>();
-        r.sharedMaterial = MakeStickerMat(c);
-        var col = q.GetComponent<Collider>();
-        if (col != null) { if (Application.isPlaying) Destroy(col); else DestroyImmediate(col); }
-    }
-
-    void AddStickerCorner(Transform parent, Vector3 pos, float radius, Color c, int cornerIndex)
-    {
-        // 用 6 段扇形模拟 90° 圆角
-        int segs = 6;
-        float startAngle = cornerIndex * 90f + 45f; // 每个角起始角度
-        var mesh = new Mesh();
-        var verts = new List<Vector3>();
-        var tris = new List<int>();
-        var uvs = new List<Vector2>();
-        verts.Add(pos); // center
-        uvs.Add(new Vector2(0.5f, 0.5f));
-        for (int i = 0; i <= segs; i++)
+        var modelRoot = modelPrefab != null ? modelPrefab.transform : null;
+        if (modelRoot != null)
         {
-            float a = Mathf.Deg2Rad * (startAngle + (float)i / segs * 90f);
-            verts.Add(pos + new Vector3(Mathf.Cos(a) * radius, Mathf.Sin(a) * radius, 0));
-            uvs.Add(new Vector2(0.5f + Mathf.Cos(a) * 0.5f, 0.5f + Mathf.Sin(a) * 0.5f));
+            try
+            {
+                var tr = Instantiate(modelRoot, transform, false);
+                if (tr != null)
+                {
+                    instance = tr.gameObject;
+                    cloned = tr;
+                }
+            }
+            catch (Exception ex)
+            {
+                modelInfo = "instantiate<Transform> exception=" + ex.GetType().Name + ":" + ex.Message;
+            }
         }
-        for (int i = 1; i <= segs; i++)
+
+        if (instance == null)
         {
-            tris.Add(0); tris.Add(i); tris.Add(i + 1);
+            try
+            {
+                instance = Instantiate(modelPrefab, transform, false);
+                cloned = instance;
+            }
+            catch (Exception ex)
+            {
+                modelInfo = (modelInfo.Length > 0 ? modelInfo + "; " : "")
+                    + "instantiate<GameObject> exception=" + ex.GetType().Name + ":" + ex.Message;
+            }
         }
-        mesh.SetVertices(verts); mesh.SetUVs(0, uvs); mesh.SetTriangles(tris, 0);
-        mesh.RecalculateNormals();
-        var go = new GameObject("StickerCorner");
-        go.transform.SetParent(parent, false);
-        var mf = go.AddComponent<MeshFilter>();
-        mf.sharedMesh = mesh;
-        var mr = go.AddComponent<MeshRenderer>();
-        mr.sharedMaterial = MakeStickerMat(c);
-    }
 
-    Material MakeStickerMat(Color c)
-    {
-        Shader sh = RuntimeShaderResolver.ResolveColorShader();
-        var m = new Material(sh) { name = "sticker" };
-        ApplyColorToMaterial(m, c, 0.45f, 0.0f, Color.black);
-        return m;
-    }
-
-    Material MakeMat(Color c, string name)
-    {
-        Shader sh = RuntimeShaderResolver.ResolveColorShader();
-        var m = new Material(sh) { name = name };
-        ApplyColorToMaterial(m, c, 0.05f, 0.0f, Color.black);
-        return m;
-    }
-
-    static void ApplyColorToMaterial(Material m, Color baseColor, float smoothness, float metallic, Color emission)
-    {
-        if (m == null) return;
-
-        if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", baseColor);
-        if (m.HasProperty("_Color")) m.SetColor("_Color", baseColor);
-
-        if (m.HasProperty("_Smoothness")) m.SetFloat("_Smoothness", smoothness);
-        if (m.HasProperty("_Glossiness")) m.SetFloat("_Glossiness", smoothness);
-        if (m.HasProperty("_GlossyScale")) m.SetFloat("_GlossyScale", smoothness);
-
-        if (m.HasProperty("_Metallic")) m.SetFloat("_Metallic", metallic);
-
-        if (m.HasProperty("_EmissionColor"))
+        if (instance == null)
         {
-            if (emission.maxColorComponent > 0.0001f) m.EnableKeyword("_EMISSION");
-            m.SetColor("_EmissionColor", emission);
+            try
+            {
+                cloned = Instantiate((UnityEngine.Object)modelPrefab);
+            }
+            catch (Exception ex)
+            {
+                modelInfo = (modelInfo.Length > 0 ? modelInfo + "; " : "")
+                    + "instantiate<Object> exception=" + ex.GetType().Name + ":" + ex.Message;
+                return false;
+            }
+
+            instance = cloned as GameObject;
+            if (instance == null)
+            {
+                var comp = cloned as Component;
+                if (comp != null) instance = comp.gameObject;
+            }
+            if (instance != null)
+                instance.transform.SetParent(transform, false);
         }
+
+        if (instance == null)
+        {
+            string originalType = (modelPrefab != null) ? modelPrefab.GetType().Name : "null";
+            string clonedType = (cloned != null) ? cloned.GetType().Name : "null";
+            modelInfo = (modelInfo.Length > 0 ? modelInfo + "; " : "")
+                + "instantiateResult=null"
+                + ", originalType=" + originalType
+                + ", clonedType=" + clonedType;
+            return false;
+        }
+
+        instance.name = modelPrefab.name + "_BuildRoot";
+
+        var rendererRoots = CollectRendererRoots(instance.transform);
+        var meshRoots = (rendererRoots.Count == 0) ? CollectMeshRoots(instance.transform) : new List<Transform>();
+        var leafRoots = (rendererRoots.Count == 0 && meshRoots.Count == 0) ? CollectLeafRoots(instance.transform) : new List<Transform>();
+
+        List<Transform> partRoots = rendererRoots;
+        if (partRoots.Count == 0) partRoots = meshRoots;
+        if (partRoots.Count == 0) partRoots = leafRoots;
+
+        rendererRootCount = partRoots.Count;
+        modelInfo = "childCount=" + instance.transform.childCount
+            + ", rendererRoots=" + rendererRoots.Count
+            + ", meshRoots=" + meshRoots.Count
+            + ", leafRoots=" + leafRoots.Count;
+
+        if (partRoots.Count == 0)
+        {
+            DestroyImmediate(instance);
+            return false;
+        }
+
+        var centers = new Vector3[partRoots.Count];
+        float minX = float.PositiveInfinity, minY = float.PositiveInfinity, minZ = float.PositiveInfinity;
+        float maxX = float.NegativeInfinity, maxY = float.NegativeInfinity, maxZ = float.NegativeInfinity;
+        for (int i = 0; i < partRoots.Count; i++)
+        {
+            var c = transform.InverseTransformPoint(GetPartCenter(partRoots[i]));
+            centers[i] = c;
+            if (c.x < minX) minX = c.x; if (c.x > maxX) maxX = c.x;
+            if (c.y < minY) minY = c.y; if (c.y > maxY) maxY = c.y;
+            if (c.z < minZ) minZ = c.z; if (c.z > maxZ) maxZ = c.z;
+        }
+
+        var map = new Dictionary<Vector3Int, Transform>();
+        for (int i = 0; i < partRoots.Count; i++)
+        {
+            var partRoot = partRoots[i];
+            if (partRoot == null) continue;
+
+            Vector3 localCenter = centers[i];
+            Vector3Int grid = new Vector3Int(
+                AxisBand(localCenter.x, minX, maxX),
+                AxisBand(localCenter.y, minY, maxY),
+                AxisBand(localCenter.z, minZ, maxZ)
+            );
+
+            Transform cubie;
+            if (!map.TryGetValue(grid, out cubie) || cubie == null)
+            {
+                var go = new GameObject("Cubie_" + grid.x + "_" + grid.y + "_" + grid.z);
+                cubie = go.transform;
+                cubie.SetParent(transform, false);
+                cubie.localPosition = new Vector3(grid.x, grid.y, grid.z) * spacing;
+                cubie.localRotation = Quaternion.identity;
+                cubie.localScale = Vector3.one;
+                map[grid] = cubie;
+                _cubies.Add(cubie);
+            }
+
+            partRoot.SetParent(cubie, true);
+        }
+
+        if (autoAddModelColliders)
+        {
+            for (int i = 0; i < _cubies.Count; i++)
+                EnsureCubieCollider(_cubies[i]);
+        }
+
+        DestroyImmediate(instance);
+        return _cubies.Count > 0;
+    }
+
+    static string InspectModelAsset(GameObject root)
+    {
+        if (root == null) return "asset=null";
+        try
+        {
+            int childCount = root.transform != null ? root.transform.childCount : -1;
+            int rendererCount = root.GetComponentsInChildren<Renderer>(true).Length;
+            int meshFilterCount = root.GetComponentsInChildren<MeshFilter>(true).Length;
+            int leafCount = 0;
+            var all = root.GetComponentsInChildren<Transform>(true);
+            for (int i = 0; i < all.Length; i++)
+            {
+                var t = all[i];
+                if (t == null || t == root.transform) continue;
+                if (t.childCount == 0) leafCount++;
+            }
+            return "assetChildren=" + childCount
+                + ", assetRenderers=" + rendererCount
+                + ", assetMeshFilters=" + meshFilterCount
+                + ", assetLeafs=" + leafCount;
+        }
+        catch (MissingReferenceException)
+        {
+            return "asset=missing-reference";
+        }
+    }
+
+    static Vector3 GetPartCenter(Transform t)
+    {
+        if (t == null) return Vector3.zero;
+        var rs = t.GetComponentsInChildren<Renderer>(true);
+        if (rs != null && rs.Length > 0)
+            return GetRendererBoundsCenter(t);
+
+        var mfs = t.GetComponentsInChildren<MeshFilter>(true);
+        if (mfs != null && mfs.Length > 0)
+        {
+            Bounds b = new Bounds(mfs[0].transform.position, Vector3.zero);
+            bool inited = false;
+            for (int i = 0; i < mfs.Length; i++)
+            {
+                var mf = mfs[i];
+                if (mf == null || mf.sharedMesh == null) continue;
+                var p = mf.transform.position;
+                if (!inited) { b = new Bounds(p, Vector3.zero); inited = true; }
+                else b.Encapsulate(p);
+            }
+            if (inited) return b.center;
+        }
+
+        return t.position;
+    }
+
+    static int AxisBand(float value, float min, float max)
+    {
+        float span = max - min;
+        if (span < 1e-4f) return 0;
+        float t = (value - min) / span;
+        if (t < (1f / 3f)) return -1;
+        if (t > (2f / 3f)) return 1;
+        return 0;
+    }
+
+    static List<Transform> CollectRendererRoots(Transform root)
+    {
+        var result = new List<Transform>();
+        if (root == null) return result;
+
+        var renderers = root.GetComponentsInChildren<Renderer>(true);
+        for (int i = 0; i < renderers.Length; i++)
+        {
+            var r = renderers[i];
+            if (r == null) continue;
+            var t = r.transform;
+            var p = t.parent;
+            while (p != null && p != root)
+            {
+                if (p.GetComponent<Renderer>() != null)
+                {
+                    t = p;
+                    p = t.parent;
+                }
+                else
+                {
+                    p = p.parent;
+                }
+            }
+            if (!result.Contains(t)) result.Add(t);
+        }
+
+        return result;
+    }
+
+    static List<Transform> CollectLeafRoots(Transform root)
+    {
+        var result = new List<Transform>();
+        if (root == null) return result;
+
+        var all = root.GetComponentsInChildren<Transform>(true);
+        for (int i = 0; i < all.Length; i++)
+        {
+            var t = all[i];
+            if (t == null || t == root) continue;
+            if (t.childCount == 0) result.Add(t);
+        }
+        return result;
+    }
+
+    static List<Transform> CollectMeshRoots(Transform root)
+    {
+        var result = new List<Transform>();
+        if (root == null) return result;
+
+        var meshFilters = root.GetComponentsInChildren<MeshFilter>(true);
+        for (int i = 0; i < meshFilters.Length; i++)
+        {
+            var mf = meshFilters[i];
+            if (mf == null || mf.sharedMesh == null) continue;
+            var t = mf.transform;
+            if (!result.Contains(t)) result.Add(t);
+        }
+
+        return result;
+    }
+
+    static Vector3 GetRendererBoundsCenter(Transform t)
+    {
+        var rs = t.GetComponentsInChildren<Renderer>(true);
+        if (rs == null || rs.Length == 0) return t.position;
+
+        Bounds b = rs[0].bounds;
+        for (int i = 1; i < rs.Length; i++) b.Encapsulate(rs[i].bounds);
+        return b.center;
+    }
+
+    static void EnsureCubieCollider(Transform cubie)
+    {
+        if (cubie == null) return;
+        if (cubie.GetComponent<Collider>() != null) return;
+
+        var rs = cubie.GetComponentsInChildren<Renderer>(true);
+        if (rs == null || rs.Length == 0) return;
+
+        Bounds world = rs[0].bounds;
+        for (int i = 1; i < rs.Length; i++) world.Encapsulate(rs[i].bounds);
+
+        var box = cubie.gameObject.AddComponent<BoxCollider>();
+        box.center = cubie.InverseTransformPoint(world.center);
+        Vector3 sx = cubie.InverseTransformVector(new Vector3(world.size.x, 0f, 0f));
+        Vector3 sy = cubie.InverseTransformVector(new Vector3(0f, world.size.y, 0f));
+        Vector3 sz = cubie.InverseTransformVector(new Vector3(0f, 0f, world.size.z));
+        box.size = new Vector3(Mathf.Abs(sx.x), Mathf.Abs(sy.y), Mathf.Abs(sz.z));
     }
 
     // ---------------- Input ----------------

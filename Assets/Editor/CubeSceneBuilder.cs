@@ -59,6 +59,14 @@ public static class CubeSceneBuilder
             var camField = cubeType.GetField("cam");
             if (camField != null) camField.SetValue(rc, cam);
 
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/art/3D/27mofang.fbx");
+            var useModelField = cubeType.GetField("useModelPrefab");
+            if (useModelField != null) useModelField.SetValue(rc, true);
+            var prefabField = cubeType.GetField("cubeModelPrefab");
+            if (prefabField != null) prefabField.SetValue(rc, prefab);
+            var colliderField = cubeType.GetField("autoAddModelColliders");
+            if (colliderField != null) colliderField.SetValue(rc, true);
+
             // EventSystem (UI 按钮输入需要)
             new GameObject("EventSystem",
                 typeof(UnityEngine.EventSystems.EventSystem),
